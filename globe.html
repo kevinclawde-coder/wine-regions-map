@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>WineTrails — World Wine Globe</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -49,7 +49,7 @@
         .info-panel {
             position: absolute; bottom: 24px; right: 16px; z-index: 10;
             background: rgba(26, 35, 51, 0.95); border-radius: 12px; padding: 16px 20px;
-            min-width: 300px; max-width: 380px; backdrop-filter: blur(12px);
+            min-width: 280px; max-width: 360px; backdrop-filter: blur(12px);
             border: 1px solid rgba(200, 143, 127, 0.3);
             box-shadow: 0 4px 24px rgba(0,0,0,0.5); display: none;
         }
@@ -87,27 +87,15 @@
             .info-panel { left: 8px; right: 8px; bottom: 8px; min-width: unset; }
         }
 
-        /* Tooltip styling override */
-        .globe-tooltip {
-            background: rgba(26, 35, 51, 0.95) !important;
-            color: #eae9e5 !important;
-            border: 1px solid rgba(200, 143, 127, 0.4) !important;
-            border-radius: 8px !important;
-            padding: 10px 14px !important;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-            font-size: 13px !important;
-            backdrop-filter: blur(10px) !important;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.4) !important;
-        }
+        #debug { position: absolute; bottom: 4px; left: 4px; z-index: 30; font-size: 10px; color: #666; max-width: 90%; word-break: break-all; }
     </style>
-    <script src="//cdn.jsdelivr.net/npm/globe.gl"></script>
 </head>
 <body>
     <div id="globeViz"></div>
 
     <div id="loading" class="loading">
         <div class="spinner"></div>
-        <div id="load-text">Loading 2,164 wine regions...</div>
+        <div id="load-text">Initializing...</div>
     </div>
 
     <div class="toggle-controls" onclick="document.querySelector('.controls').classList.toggle('open')">🍇 Menu</div>
@@ -145,6 +133,23 @@
         <div class="detail" id="info-detail"></div>
     </div>
 
+    <div id="debug"></div>
+
+    <script>
+        // Debug helper for mobile
+        function dbg(msg) {
+            console.log(msg);
+            const el = document.getElementById('debug');
+            if (el) el.textContent = msg;
+        }
+
+        window.onerror = function(msg, url, line) {
+            dbg('ERR: ' + msg + ' L' + line);
+        };
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/globe.gl@2.35.1/dist/globe.gl.min.js"></script>
+
     <script>
         const countryColors = {
             'Italy': '#e74c3c', 'France': '#3498db', 'South Africa': '#f39c12',
@@ -164,10 +169,10 @@
 
         let allFeatures = [];
         let currentMode = 'country';
-        let world;
+        let world = null;
 
         function gddToColor(gdd) {
-            if (!gdd) return '#333';
+            if (!gdd) return '#333333';
             if (gdd < 900) return '#2196F3';
             if (gdd < 1100) return '#4CAF50';
             if (gdd < 1400) return '#8BC34A';
@@ -178,7 +183,7 @@
         }
 
         function rainToColor(rain) {
-            if (!rain) return '#333';
+            if (!rain) return '#333333';
             if (rain < 300) return '#FFC107';
             if (rain < 500) return '#8BC34A';
             if (rain < 700) return '#4CAF50';
@@ -197,59 +202,53 @@
         }
 
         function getFilteredFeatures() {
-            const search = document.getElementById('search').value.toLowerCase().trim();
+            const search = (document.getElementById('search').value || '').toLowerCase().trim();
             const countryFilter = document.getElementById('country-filter').value;
 
-            return allFeatures.filter(f => {
+            return allFeatures.filter(function(f) {
                 const p = f.properties;
                 if (countryFilter && p.country !== countryFilter) return false;
                 if (currentMode === 'gdd' && !p.GDD_1) return false;
                 if (currentMode === 'rain' && !p.ppt_yr) return false;
                 if (search) {
-                    const text = `${p.Name_rgn || ''} ${p.country || ''} ${p.state || ''} ${p.altname || ''}`.toLowerCase();
-                    if (!text.includes(search)) return false;
+                    const text = ((p.Name_rgn || '') + ' ' + (p.country || '') + ' ' + (p.state || '') + ' ' + (p.altname || '')).toLowerCase();
+                    if (text.indexOf(search) === -1) return false;
                 }
                 return true;
             });
         }
 
         function applyFilters() {
-            const filtered = getFilteredFeatures();
+            if (!world) return;
+            var filtered = getFilteredFeatures();
             document.getElementById('visible-count').textContent = filtered.length;
-
-            world
-                .polygonsData(filtered)
-                .polygonCapColor(feat => getColor(feat))
-                .polygonSideColor(feat => {
-                    const c = getColor(feat);
-                    return c.replace(')', ', 0.2)').replace('rgb', 'rgba').replace('#', '');
-                });
+            world.polygonsData(filtered);
         }
 
         function setMode(mode, btn) {
             currentMode = mode;
-            document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.mode-btn').forEach(function(b) { b.classList.remove('active'); });
             btn.classList.add('active');
             applyFilters();
         }
 
         function showInfo(feat) {
-            const p = feat.properties;
+            var p = feat.properties;
             document.getElementById('info-name').textContent = p.Name_rgn || 'Unknown';
-            document.getElementById('info-class').textContent = p.class || '';
+            document.getElementById('info-class').textContent = p['class'] || '';
 
-            let detail = `<strong>Country:</strong> ${p.country || '?'}`;
-            if (p.state) detail += `<br><strong>State/Region:</strong> ${p.state}`;
+            var detail = '<strong>Country:</strong> ' + (p.country || '?');
+            if (p.state) detail += '<br><strong>State/Region:</strong> ' + p.state;
             if (p.GDD_1) {
-                const warmth = p.GDD_1 < 1000 ? 'Cool' : p.GDD_1 < 1500 ? 'Moderate' : p.GDD_1 < 2000 ? 'Warm' : 'Hot';
-                detail += `<br><strong>Growing Degree Days:</strong> ${p.GDD_1} (${warmth})`;
+                var warmth = p.GDD_1 < 1000 ? 'Cool' : p.GDD_1 < 1500 ? 'Moderate' : p.GDD_1 < 2000 ? 'Warm' : 'Hot';
+                detail += '<br><strong>Growing Degree Days:</strong> ' + p.GDD_1 + ' (' + warmth + ')';
             }
             if (p.ppt_yr) {
-                const wetness = p.ppt_yr < 400 ? 'Arid' : p.ppt_yr < 700 ? 'Dry' : p.ppt_yr < 1000 ? 'Moderate' : 'Wet';
-                detail += `<br><strong>Annual Rainfall:</strong> ${p.ppt_yr}mm (${wetness})`;
+                var wetness = p.ppt_yr < 400 ? 'Arid' : p.ppt_yr < 700 ? 'Dry' : p.ppt_yr < 1000 ? 'Moderate' : 'Wet';
+                detail += '<br><strong>Annual Rainfall:</strong> ' + p.ppt_yr + 'mm (' + wetness + ')';
             }
-            if (p.ppt_gs) detail += `<br><strong>Growing Season Rain:</strong> ${p.ppt_gs}mm`;
-            if (p.altname) detail += `<br><strong>Also known as:</strong> ${p.altname}`;
+            if (p.ppt_gs) detail += '<br><strong>Growing Season Rain:</strong> ' + p.ppt_gs + 'mm';
+            if (p.altname) detail += '<br><strong>Also known as:</strong> ' + p.altname;
 
             document.getElementById('info-detail').innerHTML = detail;
             document.getElementById('info-panel').classList.add('active');
@@ -258,84 +257,104 @@
         function closeInfo() { document.getElementById('info-panel').classList.remove('active'); }
 
         // Initialize
-        async function init() {
-            try {
-                document.getElementById('load-text').textContent = 'Downloading region data...';
-                const resp = await fetch('polygons_globe.json');
-                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-                document.getElementById('load-text').textContent = 'Parsing 2,164 regions...';
-                const data = await resp.json();
-                allFeatures = data.features;
-                document.getElementById('load-text').textContent = 'Building 3D globe...';
+        function init() {
+            dbg('Starting init...');
 
-                // Populate country filter
-                const countries = [...new Set(allFeatures.map(f => f.properties.country).filter(Boolean))].sort();
-                const cs = document.getElementById('country-filter');
-                countries.forEach(c => {
-                    const opt = document.createElement('option');
-                    opt.value = c;
-                    opt.textContent = `${c} (${allFeatures.filter(f => f.properties.country === c).length})`;
-                    cs.appendChild(opt);
-                });
-
-                document.getElementById('total-count').textContent = allFeatures.length;
-                document.getElementById('visible-count').textContent = allFeatures.length;
-                document.getElementById('country-count').textContent = countries.length;
-
-                // Create globe — size to window
-                const container = document.getElementById('globeViz');
-                world = new Globe(container)
-                    .width(window.innerWidth)
-                    .height(window.innerHeight)
-                    .globeImageUrl('//cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg')
-                    .backgroundImageUrl('//cdn.jsdelivr.net/npm/three-globe/example/img/night-sky.png')
-                    .polygonsData(allFeatures)
-                    .polygonGeoJsonGeometry(f => f.geometry)
-                    .polygonCapColor(feat => getColor(feat))
-                    .polygonSideColor(() => 'rgba(200, 143, 127, 0.08)')
-                    .polygonStrokeColor(() => 'rgba(234, 233, 229, 0.15)')
-                    .polygonAltitude(feat => {
-                        const p = feat.properties;
-                        // Slight extrusion based on zoom_level — parents taller
-                        return p.has_children ? 0.008 : 0.012;
-                    })
-                    .polygonLabel(feat => {
-                        const p = feat.properties;
-                        let label = `<div class="globe-tooltip"><b style="color:#ffd700">${p.Name_rgn || 'Unknown'}</b>`;
-                        if (p.country) label += `<br><span style="color:#c48f7f">${p.country}</span>`;
-                        if (p.class) label += `<br><span style="opacity:0.7">${p.class}</span>`;
-                        if (p.GDD_1) {
-                            const warmth = p.GDD_1 < 1000 ? 'Cool' : p.GDD_1 < 1500 ? 'Moderate' : p.GDD_1 < 2000 ? 'Warm' : 'Hot';
-                            label += `<br>🌡️ ${p.GDD_1} GDD (${warmth})`;
-                        }
-                        if (p.ppt_yr) label += `<br>🌧️ ${p.ppt_yr}mm/yr`;
-                        label += '</div>';
-                        return label;
-                    })
-                    .onPolygonClick(feat => showInfo(feat))
-                    .onPolygonHover(hoverD => {
-                        world
-                            .polygonAltitude(d => d === hoverD ? 0.04 : (d.properties.has_children ? 0.008 : 0.012))
-                            .polygonCapColor(d => d === hoverD ? '#ffd700' : getColor(d));
-                    })
-                    .polygonsTransitionDuration(200);
-
-                // Handle resize
-                window.addEventListener('resize', () => {
-                    world.width(window.innerWidth).height(window.innerHeight);
-                });
-
-                // Start with view of NZ
-                world.pointOfView({ lat: -42, lng: 172, altitude: 2.2 }, 1500);
-
-                document.getElementById('loading').style.display = 'none';
-
-            } catch (e) {
-                document.getElementById('loading').innerHTML = `<div style="color:#c48f7f">Failed to load: ${e.message}</div>`;
+            if (typeof Globe === 'undefined') {
+                dbg('ERROR: Globe.gl not loaded');
+                document.getElementById('load-text').textContent = 'Error: Globe library failed to load. Try Safari.';
+                return;
             }
+
+            dbg('Globe.gl loaded, fetching data...');
+            document.getElementById('load-text').textContent = 'Downloading region data...';
+
+            fetch('polygons_globe.json')
+                .then(function(resp) {
+                    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                    dbg('Data downloaded, parsing...');
+                    document.getElementById('load-text').textContent = 'Parsing regions...';
+                    return resp.json();
+                })
+                .then(function(data) {
+                    allFeatures = data.features;
+                    dbg('Parsed ' + allFeatures.length + ' regions, building globe...');
+                    document.getElementById('load-text').textContent = 'Building 3D globe (' + allFeatures.length + ' regions)...';
+
+                    // Populate country filter
+                    var countrySet = {};
+                    allFeatures.forEach(function(f) {
+                        var c = f.properties.country;
+                        if (c) countrySet[c] = (countrySet[c] || 0) + 1;
+                    });
+                    var countries = Object.keys(countrySet).sort();
+                    var cs = document.getElementById('country-filter');
+                    countries.forEach(function(c) {
+                        var opt = document.createElement('option');
+                        opt.value = c;
+                        opt.textContent = c + ' (' + countrySet[c] + ')';
+                        cs.appendChild(opt);
+                    });
+
+                    document.getElementById('total-count').textContent = allFeatures.length;
+                    document.getElementById('visible-count').textContent = allFeatures.length;
+                    document.getElementById('country-count').textContent = countries.length;
+
+                    // Create globe
+                    var container = document.getElementById('globeViz');
+                    world = new Globe(container)
+                        .width(window.innerWidth)
+                        .height(window.innerHeight)
+                        .globeImageUrl('https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg')
+                        .backgroundImageUrl('https://cdn.jsdelivr.net/npm/three-globe/example/img/night-sky.png')
+                        .polygonsData(allFeatures)
+                        .polygonGeoJsonGeometry(function(f) { return f.geometry; })
+                        .polygonCapColor(function(feat) { return getColor(feat); })
+                        .polygonSideColor(function() { return 'rgba(200, 143, 127, 0.08)'; })
+                        .polygonStrokeColor(function() { return 'rgba(234, 233, 229, 0.15)'; })
+                        .polygonAltitude(0.01)
+                        .polygonLabel(function(feat) {
+                            var p = feat.properties;
+                            return '<div style="background:rgba(26,35,51,0.95);color:#eae9e5;border:1px solid rgba(200,143,127,0.4);border-radius:8px;padding:10px 14px;font-size:13px;">'
+                                + '<b style="color:#ffd700">' + (p.Name_rgn || 'Unknown') + '</b>'
+                                + (p.country ? '<br><span style="color:#c48f7f">' + p.country + '</span>' : '')
+                                + (p['class'] ? '<br><span style="opacity:0.7">' + p['class'] + '</span>' : '')
+                                + (p.GDD_1 ? '<br>🌡️ ' + p.GDD_1 + ' GDD' : '')
+                                + (p.ppt_yr ? '<br>🌧️ ' + p.ppt_yr + 'mm/yr' : '')
+                                + '</div>';
+                        })
+                        .onPolygonClick(function(feat) { showInfo(feat); })
+                        .onPolygonHover(function(hoverD) {
+                            world
+                                .polygonAltitude(function(d) { return d === hoverD ? 0.04 : 0.01; })
+                                .polygonCapColor(function(d) { return d === hoverD ? '#ffd700' : getColor(d); });
+                        })
+                        .polygonsTransitionDuration(200);
+
+                    // Handle resize
+                    window.addEventListener('resize', function() {
+                        if (world) world.width(window.innerWidth).height(window.innerHeight);
+                    });
+
+                    // Start with view of NZ
+                    world.pointOfView({ lat: -42, lng: 172, altitude: 2.2 }, 1500);
+
+                    document.getElementById('loading').style.display = 'none';
+                    dbg('Globe ready! ' + allFeatures.length + ' regions');
+                })
+                .catch(function(e) {
+                    dbg('FETCH ERROR: ' + e.message);
+                    document.getElementById('load-text').textContent = 'Error: ' + e.message;
+                    document.querySelector('.spinner').style.display = 'none';
+                });
         }
 
-        init();
+        // Wait for Globe.gl script to be ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
     </script>
 </body>
 </html>
