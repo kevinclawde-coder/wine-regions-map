@@ -60,6 +60,7 @@
         .loading {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             z-index: 20; color: #ffd700; font-size: 16px; text-align: center;
+            width: 90%; max-width: 300px;
         }
         .loading .spinner {
             width: 40px; height: 40px; border: 3px solid rgba(200,143,127,0.3);
@@ -75,10 +76,14 @@
         }
         @media (max-width: 600px) {
             .controls { display: none; }
-            .controls.open { display: block; top: 50px; }
+            .controls.open { display: block; top: 50px; left: 8px; right: 8px; min-width: unset; }
             .toggle-controls { display: block; }
-            .info-panel { bottom: 8px; right: 8px; left: 8px; min-width: unset; }
+            .info-panel { bottom: 8px; right: 8px; left: 8px; min-width: unset; max-width: unset; }
         }
+        
+        /* Ensure map fills screen on mobile */
+        html, body { width: 100%; height: 100%; overflow: hidden; }
+        #map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
     </style>
 </head>
 <body>
@@ -339,8 +344,12 @@
     </script>
     
     <script>
+        // Also check hash for key (WhatsApp sometimes eats query params)
         const params = new URLSearchParams(window.location.search);
-        const apiKey = params.get('key');
+        let apiKey = params.get('key');
+        if (!apiKey && window.location.hash.includes('key=')) {
+            apiKey = window.location.hash.split('key=')[1];
+        }
         if (!apiKey) {
             document.getElementById('loading').innerHTML = '<div style="color:#c48f7f;font-size:18px;text-align:center;padding:20px;">Add your Google Maps API key:<br><code style="color:#ffd700;margin-top:8px;display:block;">?key=YOUR_API_KEY</code></div>';
         } else {
