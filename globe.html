@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WineTrails — World Wine Globe</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0e17; color: #eae9e5; }
+        #globeViz { width: 100%; height: 100%; }
+
+        .controls {
+            position: absolute; top: 16px; left: 16px; z-index: 10;
+            background: rgba(26, 35, 51, 0.92); border-radius: 12px; padding: 16px;
+            min-width: 260px; backdrop-filter: blur(12px);
+            border: 1px solid rgba(200, 143, 127, 0.3);
+            box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+            max-height: calc(100vh - 32px); overflow-y: auto;
+        }
+        .controls h1 { font-size: 18px; color: #ffd700; margin-bottom: 4px; }
+        .controls .subtitle { font-size: 12px; color: #c48f7f; margin-bottom: 12px; }
+        .controls .stats { font-size: 13px; margin-bottom: 12px; line-height: 1.6; }
+        .controls .stats span { color: #ffd700; font-weight: 600; }
+
+        .filter-group { margin-bottom: 10px; }
+        .filter-group label {
+            display: block; font-size: 11px; text-transform: uppercase;
+            letter-spacing: 0.5px; color: #c48f7f; margin-bottom: 4px;
+        }
+        .filter-group input, .filter-group select {
+            width: 100%; padding: 8px 10px; border-radius: 8px;
+            border: 1px solid rgba(200, 143, 127, 0.3);
+            background: rgba(255,255,255,0.08); color: #eae9e5; font-size: 13px; outline: none;
+        }
+        .filter-group input:focus, .filter-group select:focus { border-color: #c48f7f; }
+        .filter-group select option { background: #1a2333; color: #eae9e5; }
+
+        .view-modes { margin-bottom: 12px; }
+        .view-modes label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #c48f7f; margin-bottom: 6px; }
+        .mode-btns { display: flex; gap: 4px; flex-wrap: wrap; }
+        .mode-btn {
+            padding: 6px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;
+            border: 1px solid rgba(200, 143, 127, 0.3); background: rgba(255,255,255,0.05);
+            color: #eae9e5; transition: all 0.2s;
+        }
+        .mode-btn:hover { background: rgba(200, 143, 127, 0.15); }
+        .mode-btn.active { background: rgba(200, 143, 127, 0.3); border-color: #c48f7f; color: #ffd700; }
+
+        .info-panel {
+            position: absolute; bottom: 24px; right: 16px; z-index: 10;
+            background: rgba(26, 35, 51, 0.95); border-radius: 12px; padding: 16px 20px;
+            min-width: 300px; max-width: 380px; backdrop-filter: blur(12px);
+            border: 1px solid rgba(200, 143, 127, 0.3);
+            box-shadow: 0 4px 24px rgba(0,0,0,0.5); display: none;
+        }
+        .info-panel.active { display: block; }
+        .info-panel h2 { font-size: 16px; color: #ffd700; margin-bottom: 4px; }
+        .info-panel .classification { font-size: 12px; color: #c48f7f; margin-bottom: 8px; font-style: italic; }
+        .info-panel .detail { font-size: 13px; line-height: 1.6; }
+        .info-panel .detail strong { color: #c48f7f; }
+        .info-panel .close-btn {
+            position: absolute; top: 8px; right: 12px; cursor: pointer;
+            color: #eae9e5; font-size: 18px; opacity: 0.6;
+        }
+        .info-panel .close-btn:hover { opacity: 1; }
+
+        .loading {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 20; color: #ffd700; font-size: 16px; text-align: center;
+        }
+        .loading .spinner {
+            width: 40px; height: 40px; border: 3px solid rgba(200,143,127,0.3);
+            border-top-color: #ffd700; border-radius: 50%;
+            animation: spin 1s linear infinite; margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .toggle-controls {
+            display: none; position: absolute; top: 16px; left: 16px; z-index: 11;
+            background: rgba(26, 35, 51, 0.95); border: 1px solid rgba(200, 143, 127, 0.3);
+            border-radius: 8px; padding: 8px 12px; color: #ffd700; font-size: 14px; cursor: pointer;
+        }
+        @media (max-width: 600px) {
+            .controls { display: none; }
+            .controls.open { display: block; top: 50px; left: 8px; right: 8px; min-width: unset; }
+            .toggle-controls { display: block; }
+            .info-panel { left: 8px; right: 8px; bottom: 8px; min-width: unset; }
+        }
+
+        /* Tooltip styling override */
+        .globe-tooltip {
+            background: rgba(26, 35, 51, 0.95) !important;
+            color: #eae9e5 !important;
+            border: 1px solid rgba(200, 143, 127, 0.4) !important;
+            border-radius: 8px !important;
+            padding: 10px 14px !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+            font-size: 13px !important;
+            backdrop-filter: blur(10px) !important;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4) !important;
+        }
+    </style>
+    <script src="//cdn.jsdelivr.net/npm/globe.gl"></script>
+</head>
+<body>
+    <div id="globeViz"></div>
+
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+        Loading 2,565 wine regions...
+    </div>
+
+    <div class="toggle-controls" onclick="document.querySelector('.controls').classList.toggle('open')">🍇 Menu</div>
+
+    <div class="controls">
+        <h1>🍇 WineTrails Globe</h1>
+        <div class="subtitle">World Wine Regions Explorer</div>
+        <div class="stats">
+            <span id="visible-count">0</span> / <span id="total-count">0</span> regions · <span id="country-count">0</span> countries
+        </div>
+
+        <div class="filter-group">
+            <label>Search</label>
+            <input type="text" id="search" placeholder="Region, country..." oninput="applyFilters()">
+        </div>
+        <div class="filter-group">
+            <label>Country</label>
+            <select id="country-filter" onchange="applyFilters()"><option value="">All Countries</option></select>
+        </div>
+
+        <div class="view-modes">
+            <label>View Mode</label>
+            <div class="mode-btns">
+                <div class="mode-btn active" onclick="setMode('country', this)">🌍 Country</div>
+                <div class="mode-btn" onclick="setMode('gdd', this)">🌡️ Heat</div>
+                <div class="mode-btn" onclick="setMode('rain', this)">🌧️ Rain</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="info-panel" id="info-panel">
+        <span class="close-btn" onclick="closeInfo()">✕</span>
+        <h2 id="info-name"></h2>
+        <div class="classification" id="info-class"></div>
+        <div class="detail" id="info-detail"></div>
+    </div>
+
+    <script>
+        const countryColors = {
+            'Italy': '#e74c3c', 'France': '#3498db', 'South Africa': '#f39c12',
+            'United States': '#2ecc71', 'Serbia': '#9b59b6', 'Canada': '#e91e63',
+            'Bulgaria': '#00bcd4', 'Australia': '#ff9800', 'Spain': '#f44336',
+            'Hungary': '#4caf50', 'Switzerland': '#ff5722', 'New Zealand': '#c48f7f',
+            'Chile': '#8bc34a', 'Argentina': '#03a9f4', 'Kosovo': '#673ab7',
+            'Georgia': '#795548', 'Montenegro': '#607d8b', 'Germany': '#ffc107',
+            'Portugal': '#76ff03', 'Romania': '#e040fb', 'Czechia': '#00e5ff',
+            'Greece': '#ff6e40', 'Croatia': '#64ffda', 'Slovenia': '#b388ff',
+            'Austria': '#ea80fc', 'Netherlands': '#ff80ab', 'Poland': '#69f0ae',
+            'Ukraine': '#ba68c8', 'Russian Federation': '#ef9a9a', 'Turkey': '#80cbc4',
+            'Morocco': '#a1887f', 'Algeria': '#bcaaa4', 'China': '#ffcc80',
+            'Brazil': '#aed581', 'Mexico': '#ce93d8',
+        };
+        const defaultColor = '#b8860b';
+
+        let allFeatures = [];
+        let currentMode = 'country';
+        let world;
+
+        function gddToColor(gdd) {
+            if (!gdd) return '#333';
+            if (gdd < 900) return '#2196F3';
+            if (gdd < 1100) return '#4CAF50';
+            if (gdd < 1400) return '#8BC34A';
+            if (gdd < 1700) return '#FFC107';
+            if (gdd < 2000) return '#FF9800';
+            if (gdd < 2300) return '#FF5722';
+            return '#B71C1C';
+        }
+
+        function rainToColor(rain) {
+            if (!rain) return '#333';
+            if (rain < 300) return '#FFC107';
+            if (rain < 500) return '#8BC34A';
+            if (rain < 700) return '#4CAF50';
+            if (rain < 900) return '#2196F3';
+            if (rain < 1100) return '#1976D2';
+            return '#0D47A1';
+        }
+
+        function getColor(feat) {
+            const p = feat.properties;
+            switch (currentMode) {
+                case 'gdd': return gddToColor(p.GDD_1);
+                case 'rain': return rainToColor(p.ppt_yr);
+                default: return countryColors[p.country] || defaultColor;
+            }
+        }
+
+        function getFilteredFeatures() {
+            const search = document.getElementById('search').value.toLowerCase().trim();
+            const countryFilter = document.getElementById('country-filter').value;
+
+            return allFeatures.filter(f => {
+                const p = f.properties;
+                if (countryFilter && p.country !== countryFilter) return false;
+                if (currentMode === 'gdd' && !p.GDD_1) return false;
+                if (currentMode === 'rain' && !p.ppt_yr) return false;
+                if (search) {
+                    const text = `${p.Name_rgn || ''} ${p.country || ''} ${p.state || ''} ${p.altname || ''}`.toLowerCase();
+                    if (!text.includes(search)) return false;
+                }
+                return true;
+            });
+        }
+
+        function applyFilters() {
+            const filtered = getFilteredFeatures();
+            document.getElementById('visible-count').textContent = filtered.length;
+
+            world
+                .polygonsData(filtered)
+                .polygonCapColor(feat => getColor(feat))
+                .polygonSideColor(feat => {
+                    const c = getColor(feat);
+                    return c.replace(')', ', 0.2)').replace('rgb', 'rgba').replace('#', '');
+                });
+        }
+
+        function setMode(mode, btn) {
+            currentMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            applyFilters();
+        }
+
+        function showInfo(feat) {
+            const p = feat.properties;
+            document.getElementById('info-name').textContent = p.Name_rgn || 'Unknown';
+            document.getElementById('info-class').textContent = p.class || '';
+
+            let detail = `<strong>Country:</strong> ${p.country || '?'}`;
+            if (p.state) detail += `<br><strong>State/Region:</strong> ${p.state}`;
+            if (p.GDD_1) {
+                const warmth = p.GDD_1 < 1000 ? 'Cool' : p.GDD_1 < 1500 ? 'Moderate' : p.GDD_1 < 2000 ? 'Warm' : 'Hot';
+                detail += `<br><strong>Growing Degree Days:</strong> ${p.GDD_1} (${warmth})`;
+            }
+            if (p.ppt_yr) {
+                const wetness = p.ppt_yr < 400 ? 'Arid' : p.ppt_yr < 700 ? 'Dry' : p.ppt_yr < 1000 ? 'Moderate' : 'Wet';
+                detail += `<br><strong>Annual Rainfall:</strong> ${p.ppt_yr}mm (${wetness})`;
+            }
+            if (p.ppt_gs) detail += `<br><strong>Growing Season Rain:</strong> ${p.ppt_gs}mm`;
+            if (p.altname) detail += `<br><strong>Also known as:</strong> ${p.altname}`;
+
+            document.getElementById('info-detail').innerHTML = detail;
+            document.getElementById('info-panel').classList.add('active');
+        }
+
+        function closeInfo() { document.getElementById('info-panel').classList.remove('active'); }
+
+        // Initialize
+        async function init() {
+            try {
+                const resp = await fetch('polygons.json');
+                const data = await resp.json();
+                allFeatures = data.features;
+
+                // Populate country filter
+                const countries = [...new Set(allFeatures.map(f => f.properties.country).filter(Boolean))].sort();
+                const cs = document.getElementById('country-filter');
+                countries.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c;
+                    opt.textContent = `${c} (${allFeatures.filter(f => f.properties.country === c).length})`;
+                    cs.appendChild(opt);
+                });
+
+                document.getElementById('total-count').textContent = allFeatures.length;
+                document.getElementById('visible-count').textContent = allFeatures.length;
+                document.getElementById('country-count').textContent = countries.length;
+
+                // Create globe
+                world = new Globe(document.getElementById('globeViz'))
+                    .globeImageUrl('//cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg')
+                    .backgroundImageUrl('//cdn.jsdelivr.net/npm/three-globe/example/img/night-sky.png')
+                    .polygonsData(allFeatures)
+                    .polygonGeoJsonGeometry(f => f.geometry)
+                    .polygonCapColor(feat => getColor(feat))
+                    .polygonSideColor(() => 'rgba(200, 143, 127, 0.08)')
+                    .polygonStrokeColor(() => 'rgba(234, 233, 229, 0.15)')
+                    .polygonAltitude(feat => {
+                        const p = feat.properties;
+                        // Slight extrusion based on zoom_level — parents taller
+                        return p.has_children ? 0.008 : 0.012;
+                    })
+                    .polygonLabel(feat => {
+                        const p = feat.properties;
+                        let label = `<div class="globe-tooltip"><b style="color:#ffd700">${p.Name_rgn || 'Unknown'}</b>`;
+                        if (p.country) label += `<br><span style="color:#c48f7f">${p.country}</span>`;
+                        if (p.class) label += `<br><span style="opacity:0.7">${p.class}</span>`;
+                        if (p.GDD_1) {
+                            const warmth = p.GDD_1 < 1000 ? 'Cool' : p.GDD_1 < 1500 ? 'Moderate' : p.GDD_1 < 2000 ? 'Warm' : 'Hot';
+                            label += `<br>🌡️ ${p.GDD_1} GDD (${warmth})`;
+                        }
+                        if (p.ppt_yr) label += `<br>🌧️ ${p.ppt_yr}mm/yr`;
+                        label += '</div>';
+                        return label;
+                    })
+                    .onPolygonClick(feat => showInfo(feat))
+                    .onPolygonHover(hoverD => {
+                        world
+                            .polygonAltitude(d => d === hoverD ? 0.04 : (d.properties.has_children ? 0.008 : 0.012))
+                            .polygonCapColor(d => d === hoverD ? '#ffd700' : getColor(d));
+                    })
+                    .polygonsTransitionDuration(200);
+
+                // Start with view of NZ
+                world.pointOfView({ lat: -42, lng: 172, altitude: 2.2 }, 1500);
+
+                document.getElementById('loading').style.display = 'none';
+
+            } catch (e) {
+                document.getElementById('loading').innerHTML = `<div style="color:#c48f7f">Failed to load: ${e.message}</div>`;
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
