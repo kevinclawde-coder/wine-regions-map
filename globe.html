@@ -148,6 +148,7 @@
         };
     </script>
 
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/globe.gl@2.35.1/dist/globe.gl.min.js"></script>
 
     <script>
@@ -269,7 +270,7 @@
             dbg('Globe.gl loaded, fetching data...');
             document.getElementById('load-text').textContent = 'Downloading region data...';
 
-            fetch('polygons_globe.json')
+            fetch('polygons_globe_lite.json')
                 .then(function(resp) {
                     if (!resp.ok) throw new Error('HTTP ' + resp.status);
                     dbg('Data downloaded, parsing...');
@@ -279,7 +280,7 @@
                 .then(function(data) {
                     allFeatures = data.features;
                     dbg('Parsed ' + allFeatures.length + ' regions, building globe...');
-                    document.getElementById('load-text').textContent = 'Building 3D globe (' + allFeatures.length + ' regions)...';
+                    document.getElementById('load-text').textContent = 'Rendering globe...';
 
                     // Populate country filter
                     var countrySet = {};
@@ -305,8 +306,11 @@
                     world = new Globe(container)
                         .width(window.innerWidth)
                         .height(window.innerHeight)
-                        .globeImageUrl('https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg')
-                        .backgroundImageUrl('https://cdn.jsdelivr.net/npm/three-globe/example/img/night-sky.png')
+                        .backgroundColor('#0a0e17')
+                        .showGlobe(true)
+                        .showAtmosphere(true)
+                        .atmosphereColor('#c48f7f')
+                        .atmosphereAltitude(0.15)
                         .polygonsData(allFeatures)
                         .polygonGeoJsonGeometry(function(f) { return f.geometry; })
                         .polygonCapColor(function(feat) { return getColor(feat); })
@@ -330,6 +334,13 @@
                                 .polygonCapColor(function(d) { return d === hoverD ? '#ffd700' : getColor(d); });
                         })
                         .polygonsTransitionDuration(200);
+
+                    // Set globe color to dark navy (no texture needed)
+                    var globeMaterial = world.globeMaterial();
+                    globeMaterial.color = new THREE.Color('#0e1a2b');
+                    globeMaterial.emissive = new THREE.Color('#0e1a2b');
+                    globeMaterial.emissiveIntensity = 0.1;
+                    globeMaterial.shininess = 0.1;
 
                     // Handle resize
                     window.addEventListener('resize', function() {
