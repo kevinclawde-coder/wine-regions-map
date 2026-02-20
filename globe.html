@@ -107,7 +107,7 @@
 
     <div id="loading" class="loading">
         <div class="spinner"></div>
-        Loading 2,565 wine regions...
+        <div id="load-text">Loading 2,164 wine regions...</div>
     </div>
 
     <div class="toggle-controls" onclick="document.querySelector('.controls').classList.toggle('open')">🍇 Menu</div>
@@ -260,9 +260,13 @@
         // Initialize
         async function init() {
             try {
-                const resp = await fetch('polygons.json');
+                document.getElementById('load-text').textContent = 'Downloading region data...';
+                const resp = await fetch('polygons_globe.json');
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                document.getElementById('load-text').textContent = 'Parsing 2,164 regions...';
                 const data = await resp.json();
                 allFeatures = data.features;
+                document.getElementById('load-text').textContent = 'Building 3D globe...';
 
                 // Populate country filter
                 const countries = [...new Set(allFeatures.map(f => f.properties.country).filter(Boolean))].sort();
@@ -278,8 +282,11 @@
                 document.getElementById('visible-count').textContent = allFeatures.length;
                 document.getElementById('country-count').textContent = countries.length;
 
-                // Create globe
-                world = new Globe(document.getElementById('globeViz'))
+                // Create globe — size to window
+                const container = document.getElementById('globeViz');
+                world = new Globe(container)
+                    .width(window.innerWidth)
+                    .height(window.innerHeight)
                     .globeImageUrl('//cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg')
                     .backgroundImageUrl('//cdn.jsdelivr.net/npm/three-globe/example/img/night-sky.png')
                     .polygonsData(allFeatures)
@@ -312,6 +319,11 @@
                             .polygonCapColor(d => d === hoverD ? '#ffd700' : getColor(d));
                     })
                     .polygonsTransitionDuration(200);
+
+                // Handle resize
+                window.addEventListener('resize', () => {
+                    world.width(window.innerWidth).height(window.innerHeight);
+                });
 
                 // Start with view of NZ
                 world.pointOfView({ lat: -42, lng: 172, altitude: 2.2 }, 1500);
