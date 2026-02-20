@@ -3,197 +3,115 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WineTrails — World Wine Regions (Test)</title>
+    <title>WineTrails — World Wine Regions</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a2333; color: #eae9e5; }
-        
         #map { width: 100%; height: 100vh; }
         
-        /* Control panel */
         .controls {
-            position: absolute;
-            top: 16px;
-            left: 16px;
-            z-index: 10;
-            background: rgba(26, 35, 51, 0.95);
-            border-radius: 12px;
-            padding: 16px;
-            min-width: 280px;
-            backdrop-filter: blur(10px);
+            position: absolute; top: 16px; left: 16px; z-index: 10;
+            background: rgba(26, 35, 51, 0.95); border-radius: 12px; padding: 16px;
+            min-width: 260px; backdrop-filter: blur(10px);
             border: 1px solid rgba(200, 143, 127, 0.3);
             box-shadow: 0 4px 24px rgba(0,0,0,0.4);
         }
-        .controls h1 {
-            font-size: 18px;
-            color: #ffd700;
-            margin-bottom: 4px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .controls .subtitle {
-            font-size: 12px;
-            color: #c48f7f;
-            margin-bottom: 12px;
-        }
-        .controls .stats {
-            font-size: 13px;
-            color: #eae9e5;
-            margin-bottom: 12px;
-            line-height: 1.6;
-        }
+        .controls h1 { font-size: 18px; color: #ffd700; margin-bottom: 4px; }
+        .controls .subtitle { font-size: 12px; color: #c48f7f; margin-bottom: 12px; }
+        .controls .stats { font-size: 13px; margin-bottom: 12px; line-height: 1.6; }
         .controls .stats span { color: #ffd700; font-weight: 600; }
         
         .filter-group { margin-bottom: 10px; }
         .filter-group label {
-            display: block;
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: #c48f7f;
-            margin-bottom: 4px;
+            display: block; font-size: 11px; text-transform: uppercase;
+            letter-spacing: 0.5px; color: #c48f7f; margin-bottom: 4px;
         }
         .filter-group select, .filter-group input {
-            width: 100%;
-            padding: 8px 10px;
-            border-radius: 8px;
+            width: 100%; padding: 8px 10px; border-radius: 8px;
             border: 1px solid rgba(200, 143, 127, 0.3);
-            background: rgba(255,255,255,0.08);
-            color: #eae9e5;
-            font-size: 13px;
-            outline: none;
+            background: rgba(255,255,255,0.08); color: #eae9e5; font-size: 13px; outline: none;
         }
-        .filter-group select:focus, .filter-group input:focus {
-            border-color: #c48f7f;
-        }
+        .filter-group select:focus, .filter-group input:focus { border-color: #c48f7f; }
         .filter-group select option { background: #1a2333; color: #eae9e5; }
         
-        .legend {
-            margin-top: 12px;
-            border-top: 1px solid rgba(200, 143, 127, 0.2);
-            padding-top: 10px;
-        }
-        .legend-title {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: #c48f7f;
-            margin-bottom: 6px;
-        }
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 12px;
-            padding: 2px 0;
-        }
-        .legend-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            flex-shrink: 0;
-        }
+        .legend { margin-top: 12px; border-top: 1px solid rgba(200, 143, 127, 0.2); padding-top: 10px; }
+        .legend-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #c48f7f; margin-bottom: 6px; }
+        .legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 2px 0; }
+        .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
         
-        /* Info panel */
         .info-panel {
-            position: absolute;
-            bottom: 24px;
-            right: 16px;
-            z-index: 10;
-            background: rgba(26, 35, 51, 0.95);
-            border-radius: 12px;
-            padding: 16px 20px;
-            min-width: 300px;
-            max-width: 380px;
-            backdrop-filter: blur(10px);
+            position: absolute; bottom: 24px; right: 16px; z-index: 10;
+            background: rgba(26, 35, 51, 0.95); border-radius: 12px; padding: 16px 20px;
+            min-width: 300px; max-width: 380px; backdrop-filter: blur(10px);
             border: 1px solid rgba(200, 143, 127, 0.3);
-            box-shadow: 0 4px 24px rgba(0,0,0,0.4);
-            display: none;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.4); display: none;
         }
         .info-panel.active { display: block; }
-        .info-panel h2 {
-            font-size: 16px;
-            color: #ffd700;
-            margin-bottom: 4px;
-        }
-        .info-panel .classification {
-            font-size: 12px;
-            color: #c48f7f;
-            margin-bottom: 8px;
-            font-style: italic;
-        }
-        .info-panel .detail {
-            font-size: 13px;
-            line-height: 1.6;
-        }
+        .info-panel h2 { font-size: 16px; color: #ffd700; margin-bottom: 4px; }
+        .info-panel .classification { font-size: 12px; color: #c48f7f; margin-bottom: 8px; font-style: italic; }
+        .info-panel .detail { font-size: 13px; line-height: 1.6; }
         .info-panel .detail strong { color: #c48f7f; }
         .info-panel .close-btn {
-            position: absolute;
-            top: 8px;
-            right: 12px;
-            cursor: pointer;
-            color: #eae9e5;
-            font-size: 18px;
-            opacity: 0.6;
+            position: absolute; top: 8px; right: 12px; cursor: pointer;
+            color: #eae9e5; font-size: 18px; opacity: 0.6;
         }
         .info-panel .close-btn:hover { opacity: 1; }
 
-        /* Toggle button for mobile */
-        .toggle-controls {
-            display: none;
-            position: absolute;
-            top: 16px;
-            left: 16px;
-            z-index: 11;
-            background: rgba(26, 35, 51, 0.95);
-            border: 1px solid rgba(200, 143, 127, 0.3);
-            border-radius: 8px;
-            padding: 8px 12px;
-            color: #ffd700;
-            font-size: 14px;
-            cursor: pointer;
+        .loading {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 20; color: #ffd700; font-size: 16px; text-align: center;
         }
-        
+        .loading .spinner {
+            width: 40px; height: 40px; border: 3px solid rgba(200,143,127,0.3);
+            border-top-color: #ffd700; border-radius: 50%;
+            animation: spin 1s linear infinite; margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .toggle-controls {
+            display: none; position: absolute; top: 16px; left: 16px; z-index: 11;
+            background: rgba(26, 35, 51, 0.95); border: 1px solid rgba(200, 143, 127, 0.3);
+            border-radius: 8px; padding: 8px 12px; color: #ffd700; font-size: 14px; cursor: pointer;
+        }
         @media (max-width: 600px) {
             .controls { display: none; }
             .controls.open { display: block; top: 50px; }
             .toggle-controls { display: block; }
+            .info-panel { bottom: 8px; right: 8px; left: 8px; min-width: unset; }
         }
     </style>
 </head>
 <body>
     <div id="map"></div>
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        Loading 1,069 wine regions...
+    </div>
     
     <button class="toggle-controls" onclick="document.querySelector('.controls').classList.toggle('open')">🍇 Filters</button>
     
     <div class="controls">
         <h1>🍇 WineTrails</h1>
         <div class="subtitle">World Wine Regions Explorer</div>
-        
         <div class="stats">
-            <span id="visible-count">732</span> regions across <span id="country-count">30</span> countries
+            <span id="visible-count">0</span> regions across <span id="country-count">0</span> countries
         </div>
-        
         <div class="filter-group">
             <label>Search</label>
             <input type="text" id="search" placeholder="Search regions..." oninput="applyFilters()">
         </div>
-        
         <div class="filter-group">
             <label>Country</label>
             <select id="country-filter" onchange="applyFilters()">
                 <option value="">All Countries</option>
             </select>
         </div>
-        
         <div class="filter-group">
             <label>Classification</label>
             <select id="class-filter" onchange="applyFilters()">
                 <option value="">All Classifications</option>
             </select>
         </div>
-        
         <div class="legend">
             <div class="legend-title">Top Countries</div>
             <div id="legend-items"></div>
@@ -208,109 +126,103 @@
     </div>
 
     <script>
-        // Wine region data (loaded from JSON)
-        let regions = [];
-        let markers = [];
+        let polygonFeatures = [];
+        let drawnPolygons = [];
         let map;
+        let activeFilter = { country: '', cls: '', search: '' };
         
-        // Country color palette
         const countryColors = {
-            'Italy': '#e74c3c',
-            'France': '#3498db',
-            'South Africa': '#f39c12',
-            'United States': '#2ecc71',
-            'Serbia': '#9b59b6',
-            'Canada': '#e91e63',
-            'Bulgaria': '#00bcd4',
-            'Australia': '#ff9800',
-            'Spain': '#f44336',
-            'Hungary': '#4caf50',
-            'Switzerland': '#ff5722',
-            'New Zealand': '#c48f7f',
-            'Chile': '#8bc34a',
-            'Argentina': '#03a9f4',
-            'Kosovo': '#673ab7',
-            'Georgia': '#795548',
-            'Montenegro': '#607d8b',
-            'Germany': '#ffc107',
-            'Czechia': '#00e5ff',
-            'Portugal': '#76ff03',
+            'Italy': '#e74c3c', 'France': '#3498db', 'South Africa': '#f39c12',
+            'United States': '#2ecc71', 'Serbia': '#9b59b6', 'Canada': '#e91e63',
+            'Bulgaria': '#00bcd4', 'Australia': '#ff9800', 'Spain': '#f44336',
+            'Hungary': '#4caf50', 'Switzerland': '#ff5722', 'New Zealand': '#c48f7f',
+            'Chile': '#8bc34a', 'Argentina': '#03a9f4', 'Kosovo': '#673ab7',
+            'Georgia': '#795548', 'Montenegro': '#607d8b', 'Germany': '#ffc107',
+            'Portugal': '#76ff03', 'Romania': '#e040fb', 'Czechia': '#00e5ff',
+            'Greece': '#ff6e40', 'Croatia': '#64ffda', 'Slovenia': '#b388ff',
+            'Austria': '#ea80fc', 'Netherlands': '#ff80ab',
         };
-        
         const defaultColor = '#b8860b';
         
-        function getColor(country) {
-            return countryColors[country] || defaultColor;
+        function getColor(country) { return countryColors[country] || defaultColor; }
+        
+        function hexToRgba(hex, alpha) {
+            const r = parseInt(hex.slice(1, 3), 16);
+            const g = parseInt(hex.slice(3, 5), 16);
+            const b = parseInt(hex.slice(5, 7), 16);
+            return `rgba(${r},${g},${b},${alpha})`;
         }
         
         function initMap() {
             map = new google.maps.Map(document.getElementById('map'), {
-                center: { lat: 30, lng: 10 },
-                zoom: 3,
+                center: { lat: 44, lng: 5 },
+                zoom: 4,
                 styles: [
                     { elementType: 'geometry', stylers: [{ color: '#1a2333' }] },
                     { elementType: 'labels.text.stroke', stylers: [{ color: '#1a2333' }] },
                     { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] },
                     { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#8a7b6b' }] },
-                    { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] },
-                    { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#1e2d3a' }] },
-                    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2a3444' }] },
+                    { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+                    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#222d3d' }] },
                     { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#1a2333' }] },
                     { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#2a3444' }] },
-                    { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#1e2d3a' }] },
+                    { featureType: 'transit', stylers: [{ visibility: 'off' }] },
                     { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1626' }] },
                     { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#3d5568' }] },
+                    { featureType: 'administrative.country', elementType: 'geometry.stroke', stylers: [{ color: '#3d5568' }] },
                 ],
                 mapTypeControl: false,
                 streetViewControl: false,
                 fullscreenControl: true,
             });
             
-            loadRegions();
+            loadPolygons();
         }
         
-        async function loadRegions() {
+        async function loadPolygons() {
             try {
-                const resp = await fetch('regions.json');
+                const resp = await fetch('polygons.json');
                 const data = await resp.json();
-                regions = data.features;
+                polygonFeatures = data.features;
                 
                 populateFilters();
-                createMarkers();
+                drawPolygons();
                 buildLegend();
                 
+                document.getElementById('loading').style.display = 'none';
             } catch (e) {
-                console.error('Failed to load regions:', e);
+                console.error('Failed to load:', e);
+                document.getElementById('loading').innerHTML = 'Failed to load region data';
             }
         }
         
         function populateFilters() {
-            const countries = [...new Set(regions.map(r => r.properties.country))].sort();
-            const classes = [...new Set(regions.map(r => r.properties.class))].sort();
+            const countries = [...new Set(polygonFeatures.map(f => f.properties.country).filter(Boolean))].sort();
+            const classes = [...new Set(polygonFeatures.map(f => f.properties.class).filter(Boolean))].sort();
             
-            const countrySelect = document.getElementById('country-filter');
+            const cs = document.getElementById('country-filter');
             countries.forEach(c => {
                 const opt = document.createElement('option');
                 opt.value = c;
-                opt.textContent = `${c} (${regions.filter(r => r.properties.country === c).length})`;
-                countrySelect.appendChild(opt);
+                opt.textContent = `${c} (${polygonFeatures.filter(f => f.properties.country === c).length})`;
+                cs.appendChild(opt);
             });
             
-            const classSelect = document.getElementById('class-filter');
+            const cl = document.getElementById('class-filter');
             classes.forEach(c => {
                 const opt = document.createElement('option');
                 opt.value = c;
-                opt.textContent = `${c} (${regions.filter(r => r.properties.class === c).length})`;
-                classSelect.appendChild(opt);
+                opt.textContent = `${c} (${polygonFeatures.filter(f => f.properties.class === c).length})`;
+                cl.appendChild(opt);
             });
             
             document.getElementById('country-count').textContent = countries.length;
         }
         
-        function createMarkers() {
+        function drawPolygons() {
             // Clear existing
-            markers.forEach(m => m.setMap(null));
-            markers = [];
+            drawnPolygons.forEach(p => p.setMap(null));
+            drawnPolygons = [];
             
             const search = document.getElementById('search').value.toLowerCase();
             const countryFilter = document.getElementById('country-filter').value;
@@ -318,81 +230,87 @@
             
             let visible = 0;
             
-            regions.forEach(region => {
-                const p = region.properties;
-                const coords = region.geometry.coordinates;
+            polygonFeatures.forEach(feature => {
+                const p = feature.properties;
                 
                 // Apply filters
                 if (countryFilter && p.country !== countryFilter) return;
                 if (classFilter && p.class !== classFilter) return;
-                if (search && !p.Name_rgn.toLowerCase().includes(search) && 
-                    !p.country.toLowerCase().includes(search) &&
-                    !(p.state || '').toLowerCase().includes(search)) return;
+                if (search && 
+                    !(p.Name_rgn || '').toLowerCase().includes(search) && 
+                    !(p.country || '').toLowerCase().includes(search) &&
+                    !(p.state || '').toLowerCase().includes(search) &&
+                    !(p.altname || '').toLowerCase().includes(search)) return;
                 
                 visible++;
-                
                 const color = getColor(p.country);
                 
-                const marker = new google.maps.Marker({
-                    position: { lat: coords[1], lng: coords[0] },
+                // Convert GeoJSON coordinates to Google Maps paths
+                const paths = geojsonToGooglePaths(feature.geometry);
+                
+                const polygon = new google.maps.Polygon({
+                    paths: paths,
+                    strokeColor: color,
+                    strokeOpacity: 0.9,
+                    strokeWeight: 1.5,
+                    fillColor: color,
+                    fillOpacity: 0.25,
                     map: map,
-                    icon: {
-                        path: google.maps.SymbolPath.CIRCLE,
-                        scale: getMarkerScale(p),
-                        fillColor: color,
-                        fillOpacity: 0.75,
-                        strokeColor: '#fff',
-                        strokeWeight: 0.5,
-                        strokeOpacity: 0.6,
-                    },
-                    title: p.Name_rgn,
-                    optimized: true,
                 });
                 
-                marker.addListener('click', () => showInfo(region));
-                marker.regionData = region;
-                markers.push(marker);
+                // Hover effect
+                polygon.addListener('mouseover', () => {
+                    polygon.setOptions({ fillOpacity: 0.5, strokeWeight: 2.5 });
+                });
+                polygon.addListener('mouseout', () => {
+                    polygon.setOptions({ fillOpacity: 0.25, strokeWeight: 1.5 });
+                });
+                polygon.addListener('click', () => showInfo(feature));
+                
+                polygon.featureData = feature;
+                drawnPolygons.push(polygon);
             });
             
             document.getElementById('visible-count').textContent = visible;
         }
         
-        function getMarkerScale(props) {
-            const zoom = props.tippecanoe?.minzoom || 5;
-            // Bigger dot = more important (lower minzoom)
-            if (zoom <= 3) return 10;
-            if (zoom <= 4) return 8;
-            if (zoom <= 5) return 6;
-            if (zoom <= 6) return 5;
-            return 4;
+        function geojsonToGooglePaths(geometry) {
+            if (geometry.type === 'Polygon') {
+                return geometry.coordinates.map(ring => 
+                    ring.map(coord => ({ lat: coord[1], lng: coord[0] }))
+                );
+            } else if (geometry.type === 'MultiPolygon') {
+                // Flatten all polygons into paths array
+                const paths = [];
+                geometry.coordinates.forEach(polygon => {
+                    polygon.forEach(ring => {
+                        paths.push(ring.map(coord => ({ lat: coord[1], lng: coord[0] })));
+                    });
+                });
+                return paths;
+            }
+            return [];
         }
         
         function applyFilters() {
-            createMarkers();
+            drawPolygons();
         }
         
-        function showInfo(region) {
-            const p = region.properties;
+        function showInfo(feature) {
+            const p = feature.properties;
             const panel = document.getElementById('info-panel');
             
-            document.getElementById('info-name').textContent = p.Name_rgn;
-            document.getElementById('info-class').textContent = p.class;
+            document.getElementById('info-name').textContent = p.Name_rgn || 'Unknown';
+            document.getElementById('info-class').textContent = p.class || '';
             
-            let detail = `<strong>Country:</strong> ${p.country}`;
+            let detail = `<strong>Country:</strong> ${p.country || '?'}`;
             if (p.state) detail += `<br><strong>State/Region:</strong> ${p.state}`;
-            if (p.latitude) detail += `<br><strong>Latitude:</strong> ${p.latitude.toFixed(2)}°`;
+            if (p.latitude) detail += `<br><strong>Latitude:</strong> ${Number(p.latitude).toFixed(2)}°`;
             if (p.ppt_yr) detail += `<br><strong>Annual Rainfall:</strong> ${p.ppt_yr}mm`;
             if (p.ppt_gs) detail += `<br><strong>Growing Season Rain:</strong> ${p.ppt_gs}mm`;
             if (p.GDD_1) detail += `<br><strong>Growing Degree Days:</strong> ${p.GDD_1}`;
-            if (p.auv) detail += `<br><strong>AUV:</strong> ${p.auv}`;
             if (p.climate) detail += `<br><strong>Climate:</strong> ${p.climate}`;
             if (p.altname) detail += `<br><strong>Also known as:</strong> ${p.altname}`;
-            
-            // Bounding box area
-            if (p._area) {
-                const areaSqKm = (p._area / 1000000).toFixed(0);
-                detail += `<br><strong>Area:</strong> ~${Number(areaSqKm).toLocaleString()} km²`;
-            }
             
             document.getElementById('info-detail').innerHTML = detail;
             panel.classList.add('active');
@@ -404,15 +322,14 @@
         
         function buildLegend() {
             const topCountries = Object.entries(
-                regions.reduce((acc, r) => {
-                    const c = r.properties.country;
-                    acc[c] = (acc[c] || 0) + 1;
+                polygonFeatures.reduce((acc, f) => {
+                    const c = f.properties.country;
+                    if (c) acc[c] = (acc[c] || 0) + 1;
                     return acc;
                 }, {})
             ).sort((a, b) => b[1] - a[1]).slice(0, 8);
             
-            const container = document.getElementById('legend-items');
-            container.innerHTML = topCountries.map(([country, count]) => `
+            document.getElementById('legend-items').innerHTML = topCountries.map(([country, count]) => `
                 <div class="legend-item">
                     <div class="legend-dot" style="background: ${getColor(country)}"></div>
                     ${country} (${count})
@@ -422,11 +339,10 @@
     </script>
     
     <script>
-        // Load API key from URL param: ?key=YOUR_KEY
         const params = new URLSearchParams(window.location.search);
         const apiKey = params.get('key');
         if (!apiKey) {
-            document.getElementById('map').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#c48f7f;font-size:18px;text-align:center;padding:20px;">Add your Google Maps API key as a URL parameter:<br><code style="color:#ffd700;margin-top:8px;display:block;">?key=YOUR_API_KEY</code></div>';
+            document.getElementById('loading').innerHTML = '<div style="color:#c48f7f;font-size:18px;text-align:center;padding:20px;">Add your Google Maps API key:<br><code style="color:#ffd700;margin-top:8px;display:block;">?key=YOUR_API_KEY</code></div>';
         } else {
             const script = document.createElement('script');
             script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initMap`;
