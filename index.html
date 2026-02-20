@@ -6,8 +6,8 @@
     <title>WineTrails — World Wine Regions</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a2333; color: #eae9e5; }
-        #map { width: 100%; height: 100vh; }
+        html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a2333; color: #eae9e5; }
+        #map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
         
         .controls {
             position: absolute; top: 16px; left: 16px; z-index: 10;
@@ -15,6 +15,7 @@
             min-width: 260px; backdrop-filter: blur(10px);
             border: 1px solid rgba(200, 143, 127, 0.3);
             box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+            max-height: calc(100vh - 32px); overflow-y: auto;
         }
         .controls h1 { font-size: 18px; color: #ffd700; margin-bottom: 4px; }
         .controls .subtitle { font-size: 12px; color: #c48f7f; margin-bottom: 12px; }
@@ -33,6 +34,27 @@
         }
         .filter-group select:focus, .filter-group input:focus { border-color: #c48f7f; }
         .filter-group select option { background: #1a2333; color: #eae9e5; }
+        
+        /* View mode toggle */
+        .view-modes { margin-bottom: 12px; }
+        .view-modes label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #c48f7f; margin-bottom: 6px; }
+        .mode-btns { display: flex; gap: 4px; flex-wrap: wrap; }
+        .mode-btn {
+            padding: 6px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;
+            border: 1px solid rgba(200, 143, 127, 0.3); background: rgba(255,255,255,0.05);
+            color: #eae9e5; transition: all 0.2s;
+        }
+        .mode-btn:hover { background: rgba(200, 143, 127, 0.15); }
+        .mode-btn.active { background: rgba(200, 143, 127, 0.3); border-color: #c48f7f; color: #ffd700; }
+        
+        /* Gradient legend */
+        .gradient-legend { margin-top: 10px; display: none; }
+        .gradient-legend.visible { display: block; }
+        .gradient-bar {
+            height: 12px; border-radius: 6px; margin: 6px 0 4px;
+        }
+        .gradient-labels { display: flex; justify-content: space-between; font-size: 11px; color: #8a7b6b; }
+        .gradient-title { font-size: 12px; color: #eae9e5; }
         
         .legend { margin-top: 12px; border-top: 1px solid rgba(200, 143, 127, 0.2); padding-top: 10px; }
         .legend-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #c48f7f; margin-bottom: 6px; }
@@ -59,8 +81,7 @@
 
         .loading {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            z-index: 20; color: #ffd700; font-size: 16px; text-align: center;
-            width: 90%; max-width: 300px;
+            z-index: 20; color: #ffd700; font-size: 16px; text-align: center; width: 90%; max-width: 300px;
         }
         .loading .spinner {
             width: 40px; height: 40px; border: 3px solid rgba(200,143,127,0.3);
@@ -80,10 +101,6 @@
             .toggle-controls { display: block; }
             .info-panel { bottom: 8px; right: 8px; left: 8px; min-width: unset; max-width: unset; }
         }
-        
-        /* Ensure map fills screen on mobile */
-        html, body { width: 100%; height: 100%; overflow: hidden; }
-        #map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
     </style>
 </head>
 <body>
@@ -101,6 +118,45 @@
         <div class="stats">
             <span id="visible-count">0</span> regions across <span id="country-count">0</span> countries
         </div>
+        
+        <div class="view-modes">
+            <label>View Mode</label>
+            <div class="mode-btns">
+                <div class="mode-btn active" onclick="setMode('country')">🌍 Country</div>
+                <div class="mode-btn" onclick="setMode('gdd')">🌡️ Heat</div>
+                <div class="mode-btn" onclick="setMode('rain')">🌧️ Rain</div>
+                <div class="mode-btn" onclick="setMode('climate')">☀️ Climate</div>
+            </div>
+        </div>
+        
+        <!-- GDD gradient legend -->
+        <div class="gradient-legend" id="gdd-legend">
+            <div class="gradient-title">🌡️ Growing Degree Days (Heat Accumulation)</div>
+            <div class="gradient-bar" style="background: linear-gradient(to right, #2196F3, #4CAF50, #FFC107, #FF5722, #B71C1C);"></div>
+            <div class="gradient-labels"><span>800 Cool</span><span>1400</span><span>2000</span><span>2600 Hot</span></div>
+        </div>
+        
+        <!-- Rainfall gradient legend -->
+        <div class="gradient-legend" id="rain-legend">
+            <div class="gradient-title">🌧️ Annual Precipitation</div>
+            <div class="gradient-bar" style="background: linear-gradient(to right, #FFC107, #8BC34A, #2196F3, #1565C0, #0D47A1);"></div>
+            <div class="gradient-labels"><span>200mm Dry</span><span>600</span><span>1000</span><span>1400+ Wet</span></div>
+        </div>
+        
+        <!-- Climate zone legend -->
+        <div class="gradient-legend" id="climate-legend">
+            <div class="gradient-title">☀️ Köppen Climate Zones</div>
+            <div style="margin-top: 6px;">
+                <div class="legend-item"><div class="legend-dot" style="background: #FF6F00"></div> Hot Arid</div>
+                <div class="legend-item"><div class="legend-dot" style="background: #FFA726"></div> Warm Arid / Steppe</div>
+                <div class="legend-item"><div class="legend-dot" style="background: #EF5350"></div> Hot Summer, Warm Temperate</div>
+                <div class="legend-item"><div class="legend-dot" style="background: #AB47BC"></div> Humid, Hot Summer</div>
+                <div class="legend-item"><div class="legend-dot" style="background: #66BB6A"></div> Warm Summer, Temperate</div>
+                <div class="legend-item"><div class="legend-dot" style="background: #42A5F5"></div> Cool / Continental</div>
+                <div class="legend-item"><div class="legend-dot" style="background: #5C6BC0"></div> Cold / Snowy</div>
+            </div>
+        </div>
+        
         <div class="filter-group">
             <label>Search</label>
             <input type="text" id="search" placeholder="Search regions..." oninput="applyFilters()">
@@ -117,7 +173,8 @@
                 <option value="">All Classifications</option>
             </select>
         </div>
-        <div class="legend">
+        
+        <div class="legend" id="country-legend">
             <div class="legend-title">Top Countries</div>
             <div id="legend-items"></div>
         </div>
@@ -134,7 +191,7 @@
         let polygonFeatures = [];
         let drawnPolygons = [];
         let map;
-        let activeFilter = { country: '', cls: '', search: '' };
+        let currentMode = 'country';
         
         const countryColors = {
             'Italy': '#e74c3c', 'France': '#3498db', 'South Africa': '#f39c12',
@@ -145,17 +202,105 @@
             'Georgia': '#795548', 'Montenegro': '#607d8b', 'Germany': '#ffc107',
             'Portugal': '#76ff03', 'Romania': '#e040fb', 'Czechia': '#00e5ff',
             'Greece': '#ff6e40', 'Croatia': '#64ffda', 'Slovenia': '#b388ff',
-            'Austria': '#ea80fc', 'Netherlands': '#ff80ab',
+            'Austria': '#ea80fc', 'Netherlands': '#ff80ab', 'Poland': '#69f0ae',
+            'Ukraine': '#ba68c8', 'Russian Federation': '#ef9a9a', 'Turkey': '#80cbc4',
+            'Morocco': '#a1887f', 'Algeria': '#bcaaa4', 'China': '#ffcc80',
+            'Brazil': '#aed581', 'Mexico': '#ce93d8',
         };
         const defaultColor = '#b8860b';
         
-        function getColor(country) { return countryColors[country] || defaultColor; }
+        // GDD color scale: cool blue → green → yellow → orange → hot red
+        function gddToColor(gdd) {
+            if (!gdd) return '#444';
+            const stops = [
+                { val: 800, r: 33, g: 150, b: 243 },   // blue (cool)
+                { val: 1200, r: 76, g: 175, b: 80 },    // green
+                { val: 1600, r: 255, g: 193, b: 7 },    // yellow
+                { val: 2000, r: 255, g: 87, b: 34 },    // orange
+                { val: 2600, r: 183, g: 28, b: 28 },    // dark red (hot)
+            ];
+            if (gdd <= stops[0].val) return `rgb(${stops[0].r},${stops[0].g},${stops[0].b})`;
+            if (gdd >= stops[stops.length-1].val) return `rgb(${stops[stops.length-1].r},${stops[stops.length-1].g},${stops[stops.length-1].b})`;
+            for (let i = 0; i < stops.length - 1; i++) {
+                if (gdd >= stops[i].val && gdd <= stops[i+1].val) {
+                    const t = (gdd - stops[i].val) / (stops[i+1].val - stops[i].val);
+                    const r = Math.round(stops[i].r + t * (stops[i+1].r - stops[i].r));
+                    const g = Math.round(stops[i].g + t * (stops[i+1].g - stops[i].g));
+                    const b = Math.round(stops[i].b + t * (stops[i+1].b - stops[i].b));
+                    return `rgb(${r},${g},${b})`;
+                }
+            }
+            return '#444';
+        }
         
-        function hexToRgba(hex, alpha) {
-            const r = parseInt(hex.slice(1, 3), 16);
-            const g = parseInt(hex.slice(3, 5), 16);
-            const b = parseInt(hex.slice(5, 7), 16);
-            return `rgba(${r},${g},${b},${alpha})`;
+        // Rainfall color scale: dry yellow → green → blue
+        function rainToColor(rain) {
+            if (!rain) return '#444';
+            const stops = [
+                { val: 200, r: 255, g: 193, b: 7 },    // dry yellow
+                { val: 500, r: 139, g: 195, b: 74 },    // green
+                { val: 800, r: 33, g: 150, b: 243 },    // blue
+                { val: 1100, r: 21, g: 101, b: 192 },   // dark blue
+                { val: 1400, r: 13, g: 71, b: 161 },    // deep blue
+            ];
+            if (rain <= stops[0].val) return `rgb(${stops[0].r},${stops[0].g},${stops[0].b})`;
+            if (rain >= stops[stops.length-1].val) return `rgb(${stops[stops.length-1].r},${stops[stops.length-1].g},${stops[stops.length-1].b})`;
+            for (let i = 0; i < stops.length - 1; i++) {
+                if (rain >= stops[i].val && rain <= stops[i+1].val) {
+                    const t = (rain - stops[i].val) / (stops[i+1].val - stops[i].val);
+                    const r = Math.round(stops[i].r + t * (stops[i+1].r - stops[i].r));
+                    const g = Math.round(stops[i].g + t * (stops[i+1].g - stops[i].g));
+                    const b = Math.round(stops[i].b + t * (stops[i+1].b - stops[i].b));
+                    return `rgb(${r},${g},${b})`;
+                }
+            }
+            return '#444';
+        }
+        
+        // Climate zone color based on GDD + rainfall (approximated Köppen)
+        function climateToColor(gdd, rain) {
+            if (!gdd) return '#444';
+            // Hot arid
+            if (gdd > 2200 && rain < 300) return '#FF6F00';
+            // Warm arid / steppe
+            if (gdd > 1600 && rain < 500) return '#FFA726';
+            // Hot summer, warm temperate (Mediterranean)
+            if (gdd > 1800 && rain >= 300) return '#EF5350';
+            // Humid, hot summer
+            if (gdd > 1500 && rain > 700) return '#AB47BC';
+            // Warm summer, temperate
+            if (gdd >= 1100 && gdd <= 1800 && rain >= 500) return '#66BB6A';
+            // Cool / continental
+            if (gdd >= 800 && gdd < 1300) return '#42A5F5';
+            // Cold
+            if (gdd < 800) return '#5C6BC0';
+            // Default warm temperate
+            return '#66BB6A';
+        }
+        
+        function getColor(feature) {
+            const p = feature.properties;
+            switch (currentMode) {
+                case 'gdd': return gddToColor(p.GDD_1);
+                case 'rain': return rainToColor(p.ppt_yr);
+                case 'climate': return climateToColor(p.GDD_1, p.ppt_yr);
+                default: return countryColors[p.country] || defaultColor;
+            }
+        }
+        
+        function setMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Toggle legends
+            document.getElementById('gdd-legend').classList.toggle('visible', mode === 'gdd');
+            document.getElementById('rain-legend').classList.toggle('visible', mode === 'rain');
+            document.getElementById('climate-legend').classList.toggle('visible', mode === 'climate');
+            document.getElementById('country-legend').style.display = mode === 'country' ? '' : 'none';
+            
+            // Redraw
+            drawPolygons();
         }
         
         function initMap() {
@@ -176,11 +321,8 @@
                     { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#3d5568' }] },
                     { featureType: 'administrative.country', elementType: 'geometry.stroke', stylers: [{ color: '#3d5568' }] },
                 ],
-                mapTypeControl: false,
-                streetViewControl: false,
-                fullscreenControl: true,
+                mapTypeControl: false, streetViewControl: false, fullscreenControl: true,
             });
-            
             loadPolygons();
         }
         
@@ -189,14 +331,11 @@
                 const resp = await fetch('polygons.json');
                 const data = await resp.json();
                 polygonFeatures = data.features;
-                
                 populateFilters();
                 drawPolygons();
                 buildLegend();
-                
                 document.getElementById('loading').style.display = 'none';
             } catch (e) {
-                console.error('Failed to load:', e);
                 document.getElementById('loading').innerHTML = 'Failed to load region data';
             }
         }
@@ -204,160 +343,138 @@
         function populateFilters() {
             const countries = [...new Set(polygonFeatures.map(f => f.properties.country).filter(Boolean))].sort();
             const classes = [...new Set(polygonFeatures.map(f => f.properties.class).filter(Boolean))].sort();
-            
             const cs = document.getElementById('country-filter');
             countries.forEach(c => {
                 const opt = document.createElement('option');
-                opt.value = c;
-                opt.textContent = `${c} (${polygonFeatures.filter(f => f.properties.country === c).length})`;
+                opt.value = c; opt.textContent = `${c} (${polygonFeatures.filter(f => f.properties.country === c).length})`;
                 cs.appendChild(opt);
             });
-            
             const cl = document.getElementById('class-filter');
             classes.forEach(c => {
                 const opt = document.createElement('option');
-                opt.value = c;
-                opt.textContent = `${c} (${polygonFeatures.filter(f => f.properties.class === c).length})`;
+                opt.value = c; opt.textContent = `${c} (${polygonFeatures.filter(f => f.properties.class === c).length})`;
                 cl.appendChild(opt);
             });
-            
             document.getElementById('country-count').textContent = countries.length;
         }
         
         function drawPolygons() {
-            // Clear existing
             drawnPolygons.forEach(p => p.setMap(null));
             drawnPolygons = [];
-            
             const search = document.getElementById('search').value.toLowerCase();
             const countryFilter = document.getElementById('country-filter').value;
             const classFilter = document.getElementById('class-filter').value;
-            
             let visible = 0;
+            
+            const fillOpacity = currentMode === 'country' ? 0.25 : 0.55;
             
             polygonFeatures.forEach(feature => {
                 const p = feature.properties;
-                
-                // Apply filters
                 if (countryFilter && p.country !== countryFilter) return;
                 if (classFilter && p.class !== classFilter) return;
-                if (search && 
-                    !(p.Name_rgn || '').toLowerCase().includes(search) && 
+                if (search && !(p.Name_rgn || '').toLowerCase().includes(search) && 
                     !(p.country || '').toLowerCase().includes(search) &&
                     !(p.state || '').toLowerCase().includes(search) &&
                     !(p.altname || '').toLowerCase().includes(search)) return;
                 
-                visible++;
-                const color = getColor(p.country);
+                // Skip regions without data in heat/rain/climate modes
+                if (currentMode === 'gdd' && !p.GDD_1) return;
+                if (currentMode === 'rain' && !p.ppt_yr) return;
+                if (currentMode === 'climate' && !p.GDD_1) return;
                 
-                // Convert GeoJSON coordinates to Google Maps paths
+                visible++;
+                const color = getColor(feature);
                 const paths = geojsonToGooglePaths(feature.geometry);
                 
                 const polygon = new google.maps.Polygon({
                     paths: paths,
-                    strokeColor: color,
-                    strokeOpacity: 0.9,
-                    strokeWeight: 1.5,
+                    strokeColor: currentMode === 'country' ? color : '#ffffff',
+                    strokeOpacity: currentMode === 'country' ? 0.9 : 0.4,
+                    strokeWeight: currentMode === 'country' ? 1.5 : 0.8,
                     fillColor: color,
-                    fillOpacity: 0.25,
+                    fillOpacity: fillOpacity,
                     map: map,
                 });
                 
-                // Hover effect
                 polygon.addListener('mouseover', () => {
-                    polygon.setOptions({ fillOpacity: 0.5, strokeWeight: 2.5 });
+                    polygon.setOptions({ fillOpacity: fillOpacity + 0.25, strokeWeight: 2.5, strokeOpacity: 1, strokeColor: '#ffd700' });
                 });
                 polygon.addListener('mouseout', () => {
-                    polygon.setOptions({ fillOpacity: 0.25, strokeWeight: 1.5 });
+                    polygon.setOptions({ 
+                        fillOpacity: fillOpacity, 
+                        strokeWeight: currentMode === 'country' ? 1.5 : 0.8,
+                        strokeOpacity: currentMode === 'country' ? 0.9 : 0.4,
+                        strokeColor: currentMode === 'country' ? color : '#ffffff'
+                    });
                 });
                 polygon.addListener('click', () => showInfo(feature));
-                
-                polygon.featureData = feature;
                 drawnPolygons.push(polygon);
             });
-            
             document.getElementById('visible-count').textContent = visible;
         }
         
         function geojsonToGooglePaths(geometry) {
             if (geometry.type === 'Polygon') {
-                return geometry.coordinates.map(ring => 
-                    ring.map(coord => ({ lat: coord[1], lng: coord[0] }))
-                );
+                return geometry.coordinates.map(ring => ring.map(c => ({ lat: c[1], lng: c[0] })));
             } else if (geometry.type === 'MultiPolygon') {
-                // Flatten all polygons into paths array
                 const paths = [];
-                geometry.coordinates.forEach(polygon => {
-                    polygon.forEach(ring => {
-                        paths.push(ring.map(coord => ({ lat: coord[1], lng: coord[0] })));
-                    });
-                });
+                geometry.coordinates.forEach(poly => poly.forEach(ring => paths.push(ring.map(c => ({ lat: c[1], lng: c[0] })))));
                 return paths;
             }
             return [];
         }
         
-        function applyFilters() {
-            drawPolygons();
-        }
+        function applyFilters() { drawPolygons(); }
         
         function showInfo(feature) {
             const p = feature.properties;
-            const panel = document.getElementById('info-panel');
-            
             document.getElementById('info-name').textContent = p.Name_rgn || 'Unknown';
             document.getElementById('info-class').textContent = p.class || '';
             
             let detail = `<strong>Country:</strong> ${p.country || '?'}`;
             if (p.state) detail += `<br><strong>State/Region:</strong> ${p.state}`;
-            if (p.latitude) detail += `<br><strong>Latitude:</strong> ${Number(p.latitude).toFixed(2)}°`;
-            if (p.ppt_yr) detail += `<br><strong>Annual Rainfall:</strong> ${p.ppt_yr}mm`;
+            if (p.GDD_1) {
+                const warmth = p.GDD_1 < 1000 ? 'Cool' : p.GDD_1 < 1500 ? 'Moderate' : p.GDD_1 < 2000 ? 'Warm' : 'Hot';
+                detail += `<br><strong>Growing Degree Days:</strong> ${p.GDD_1} (${warmth})`;
+            }
+            if (p.ppt_yr) {
+                const wetness = p.ppt_yr < 400 ? 'Arid' : p.ppt_yr < 700 ? 'Dry' : p.ppt_yr < 1000 ? 'Moderate' : 'Wet';
+                detail += `<br><strong>Annual Rainfall:</strong> ${p.ppt_yr}mm (${wetness})`;
+            }
             if (p.ppt_gs) detail += `<br><strong>Growing Season Rain:</strong> ${p.ppt_gs}mm`;
-            if (p.GDD_1) detail += `<br><strong>Growing Degree Days:</strong> ${p.GDD_1}`;
             if (p.climate) detail += `<br><strong>Climate:</strong> ${p.climate}`;
             if (p.altname) detail += `<br><strong>Also known as:</strong> ${p.altname}`;
+            if (p.latitude) detail += `<br><strong>Latitude:</strong> ${Number(p.latitude).toFixed(2)}°`;
             
             document.getElementById('info-detail').innerHTML = detail;
-            panel.classList.add('active');
+            document.getElementById('info-panel').classList.add('active');
         }
         
-        function closeInfo() {
-            document.getElementById('info-panel').classList.remove('active');
-        }
+        function closeInfo() { document.getElementById('info-panel').classList.remove('active'); }
         
         function buildLegend() {
             const topCountries = Object.entries(
-                polygonFeatures.reduce((acc, f) => {
-                    const c = f.properties.country;
-                    if (c) acc[c] = (acc[c] || 0) + 1;
-                    return acc;
-                }, {})
-            ).sort((a, b) => b[1] - a[1]).slice(0, 8);
-            
+                polygonFeatures.reduce((acc, f) => { const c = f.properties.country; if (c) acc[c] = (acc[c] || 0) + 1; return acc; }, {})
+            ).sort((a, b) => b[1] - a[1]).slice(0, 10);
             document.getElementById('legend-items').innerHTML = topCountries.map(([country, count]) => `
                 <div class="legend-item">
-                    <div class="legend-dot" style="background: ${getColor(country)}"></div>
+                    <div class="legend-dot" style="background: ${countryColors[country] || defaultColor}"></div>
                     ${country} (${count})
                 </div>
             `).join('');
         }
     </script>
-    
     <script>
-        // Also check hash for key (WhatsApp sometimes eats query params)
         const params = new URLSearchParams(window.location.search);
         let apiKey = params.get('key');
-        if (!apiKey && window.location.hash.includes('key=')) {
-            apiKey = window.location.hash.split('key=')[1];
-        }
+        if (!apiKey && window.location.hash.includes('key=')) apiKey = window.location.hash.split('key=')[1];
         if (!apiKey) {
             document.getElementById('loading').innerHTML = '<div style="color:#c48f7f;font-size:18px;text-align:center;padding:20px;">Add your Google Maps API key:<br><code style="color:#ffd700;margin-top:8px;display:block;">?key=YOUR_API_KEY</code></div>';
         } else {
-            const script = document.createElement('script');
-            script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initMap`;
-            script.async = true;
-            script.defer = true;
-            document.head.appendChild(script);
+            const s = document.createElement('script');
+            s.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initMap`;
+            s.async = true; s.defer = true;
+            document.head.appendChild(s);
         }
     </script>
 </body>
