@@ -116,7 +116,8 @@
         <h1>🍇 WineTrails</h1>
         <div class="subtitle">World Wine Regions Explorer</div>
         <div class="stats">
-            <span id="visible-count">0</span> regions across <span id="country-count">0</span> countries
+            <span id="visible-count">0</span> of <span id="total-count">0</span> regions · <span id="country-count">0</span> countries
+            <div style="font-size:11px;color:#8a7b6b;margin-top:2px;">Zoom in for more detail</div>
         </div>
         
         <div class="view-modes">
@@ -192,6 +193,19 @@
         let drawnPolygons = [];
         let map;
         let currentMode = 'country';
+        let currentZoom = 4;
+        
+        // Zoom thresholds for detail levels
+        // Level 1 (huge): always visible
+        // Level 2 (large): visible from z5
+        // Level 3 (medium): visible from z7
+        // Level 4 (small): visible from z9
+        function getMaxLevelForZoom(zoom) {
+            if (zoom >= 9) return 4;
+            if (zoom >= 7) return 3;
+            if (zoom >= 5) return 2;
+            return 1;
+        }
         
         const countryColors = {
             'Italy': '#e74c3c', 'France': '#3498db', 'South Africa': '#f39c12',
@@ -323,6 +337,16 @@
                 ],
                 mapTypeControl: false, streetViewControl: false, fullscreenControl: true,
             });
+            
+            // Redraw on zoom change for level-of-detail
+            map.addListener('zoom_changed', () => {
+                const newZoom = map.getZoom();
+                const oldMax = getMaxLevelForZoom(currentZoom);
+                const newMax = getMaxLevelForZoom(newZoom);
+                currentZoom = newZoom;
+                if (oldMax !== newMax) drawPolygons();
+            });
+            
             loadPolygons();
         }
         
@@ -364,12 +388,17 @@
             const search = document.getElementById('search').value.toLowerCase();
             const countryFilter = document.getElementById('country-filter').value;
             const classFilter = document.getElementById('class-filter').value;
+            const maxLevel = search ? 4 : getMaxLevelForZoom(currentZoom); // show all when searching
             let visible = 0;
             
             const fillOpacity = currentMode === 'country' ? 0.25 : 0.55;
             
             polygonFeatures.forEach(feature => {
                 const p = feature.properties;
+                
+                // Zoom-based level of detail (skip if too detailed for current zoom)
+                if ((p.zoom_level || 1) > maxLevel) return;
+                
                 if (countryFilter && p.country !== countryFilter) return;
                 if (classFilter && p.class !== classFilter) return;
                 if (search && !(p.Name_rgn || '').toLowerCase().includes(search) && 
@@ -386,14 +415,21 @@
                 const color = getColor(feature);
                 const paths = geojsonToGooglePaths(feature.geometry);
                 
+                // Adjust stroke based on detail level — parent regions get thicker borders
+                const level = p.zoom_level || 1;
+                const baseStrokeWeight = level <= 1 ? 2 : level <= 2 ? 1.5 : level <= 3 ? 1 : 0.6;
+                const strokeWeight = currentMode === 'country' ? baseStrokeWeight : Math.max(0.5, baseStrokeWeight * 0.6);
+                const strokeOpacity = currentMode === 'country' ? (level <= 2 ? 0.9 : 0.7) : 0.4;
+                
                 const polygon = new google.maps.Polygon({
                     paths: paths,
                     strokeColor: currentMode === 'country' ? color : '#ffffff',
-                    strokeOpacity: currentMode === 'country' ? 0.9 : 0.4,
-                    strokeWeight: currentMode === 'country' ? 1.5 : 0.8,
+                    strokeOpacity: strokeOpacity,
+                    strokeWeight: strokeWeight,
                     fillColor: color,
-                    fillOpacity: fillOpacity,
+                    fillOpacity: level <= 2 ? fillOpacity : fillOpacity * 0.85,
                     map: map,
+                    zIndex: 5 - level, // parent regions render behind children
                 });
                 
                 polygon.addListener('mouseover', () => {
@@ -401,9 +437,9 @@
                 });
                 polygon.addListener('mouseout', () => {
                     polygon.setOptions({ 
-                        fillOpacity: fillOpacity, 
-                        strokeWeight: currentMode === 'country' ? 1.5 : 0.8,
-                        strokeOpacity: currentMode === 'country' ? 0.9 : 0.4,
+                        fillOpacity: level <= 2 ? fillOpacity : fillOpacity * 0.85, 
+                        strokeWeight: strokeWeight,
+                        strokeOpacity: strokeOpacity,
                         strokeColor: currentMode === 'country' ? color : '#ffffff'
                     });
                 });
@@ -411,6 +447,7 @@
                 drawnPolygons.push(polygon);
             });
             document.getElementById('visible-count').textContent = visible;
+            document.getElementById('total-count').textContent = polygonFeatures.length;
         }
         
         function geojsonToGooglePaths(geometry) {
@@ -445,6 +482,7 @@
             if (p.climate) detail += `<br><strong>Climate:</strong> ${p.climate}`;
             if (p.altname) detail += `<br><strong>Also known as:</strong> ${p.altname}`;
             if (p.latitude) detail += `<br><strong>Latitude:</strong> ${Number(p.latitude).toFixed(2)}°`;
+            if (p.style) detail += `<br><strong>Style:</strong> ${p.style}`;
             
             document.getElementById('info-detail').innerHTML = detail;
             document.getElementById('info-panel').classList.add('active');
