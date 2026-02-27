@@ -469,6 +469,24 @@
         
         function applyFilters() { drawPolygons(); }
         
+        // Map polygon region names to WineTrails slugs for CTA buttons
+        const WINETRAILS_REGIONS = {
+            'Bannockburn': 'bannockburn',
+            'Central Otago': 'gibbston', // Central Otago parent → Gibbston as primary
+            "Hawke's Bay": 'hawkes-bay',
+            "Hawke's Bay / Hawkes Bay": 'hawkes-bay',
+            "Central Hawke's Bay / Central Hawkes Bay": 'hawkes-bay',
+            'Marlborough': 'marlborough',
+            'Martinborough': 'martinborough',
+            'Nelson': 'nelson',
+            'Waiheke Island': 'waiheke-island',
+            'Waipara Valley / Waipara': 'waipara',
+            'Waitaki Valley': 'waitaki',
+            'Waitaki Valley North Otago': 'waitaki',
+            'Wairarapa': 'martinborough', // Wairarapa parent → Martinborough
+        };
+        const WINETRAILS_BASE_URL = 'https://app.base44.com/apps/686c6a66aa6ba9f57e0db23c/SelfGuidedDetail';
+
         function showInfo(feature) {
             const p = feature.properties;
             document.getElementById('info-name').textContent = p.Name_rgn || 'Unknown';
@@ -489,6 +507,23 @@
             if (p.altname) detail += `<br><strong>Also known as:</strong> ${p.altname}`;
             if (p.latitude) detail += `<br><strong>Latitude:</strong> ${Number(p.latitude).toFixed(2)}°`;
             if (p.style) detail += `<br><strong>Style:</strong> ${p.style}`;
+            
+            // Check if this is a WineTrails region — add CTA
+            const regionName = p.Name_rgn || '';
+            const slug = WINETRAILS_REGIONS[regionName];
+            if (slug) {
+                detail += `<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(200,143,127,0.3)">
+                    <div style="font-size:11px;color:#c48f7f;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">🍇 Available on WineTrails</div>
+                    <a href="${WINETRAILS_BASE_URL}?slug=${slug}" target="_top" style="
+                        display:inline-block;padding:10px 20px;border-radius:10px;
+                        background:linear-gradient(135deg,#b8860b,#ffd700);color:#1a2333;
+                        font-weight:700;font-size:14px;text-decoration:none;
+                        transition:transform 0.2s;
+                    " onmouseover="this.style.transform='scale(1.03)'" onmouseout="this.style.transform='scale(1)'">
+                        Generate Tour →
+                    </a>
+                </div>`;
+            }
             
             document.getElementById('info-detail').innerHTML = detail;
             document.getElementById('info-panel').classList.add('active');
