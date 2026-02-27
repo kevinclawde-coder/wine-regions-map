@@ -514,10 +514,10 @@
             if (slug) {
                 detail += `<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(200,143,127,0.3)">
                     <div style="font-size:11px;color:#c48f7f;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">🍇 Available on WineTrails</div>
-                    <a href="${WINETRAILS_BASE_URL}?slug=${slug}" target="_top" style="
+                    <a href="${WINETRAILS_BASE_URL}?slug=${slug}" onclick="event.preventDefault(); if (window.parent !== window) { window.parent.postMessage({ type: 'winetrails-navigate', slug: '${slug}' }, '*'); } else { window.location.href = this.href; }" style="
                         display:inline-block;padding:10px 20px;border-radius:10px;
                         background:linear-gradient(135deg,#b8860b,#ffd700);color:#1a2333;
-                        font-weight:700;font-size:14px;text-decoration:none;
+                        font-weight:700;font-size:14px;text-decoration:none;cursor:pointer;
                         transition:transform 0.2s;
                     " onmouseover="this.style.transform='scale(1.03)'" onmouseout="this.style.transform='scale(1)'">
                         Generate Tour →
