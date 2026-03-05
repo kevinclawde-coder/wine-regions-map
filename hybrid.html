@@ -3,28 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WineTrails — World Wine Regions (Hybrid)</title>
+    <title>WineTrails — World Wine Regions</title>
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a2333; color: #eae9e5; }
-
-        /* Google Maps = base layer */
-        #gmap {
-            position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 1;
-        }
-        /* Mapbox GL = transparent overlay on top */
-        #mbmap {
-            position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 2;
-        }
-        /* Mapbox canvas must be transparent */
-        #mbmap .mapboxgl-canvas { background: transparent !important; }
-        /* Hide Mapbox attribution/logo (Google's shows underneath) */
-        .mapboxgl-ctrl-bottom-left, .mapboxgl-ctrl-bottom-right { display: none !important; }
-
-        /* Hide Google branding */
-        .gm-style-cc, a[href*="maps.google.com"], a[href*="google.com/maps"],
-        .gm-style > div:last-child > div { display: none !important; }
+        #map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
 
         .controls {
             position: absolute; top: 16px; right: 16px; z-index: 10;
@@ -38,6 +22,23 @@
         .controls .subtitle { font-size: 12px; color: #c48f7f; margin-bottom: 12px; }
         .controls .stats { font-size: 13px; margin-bottom: 12px; line-height: 1.6; }
         .controls .stats span { color: #ffd700; font-weight: 600; }
+
+        .view-modes { margin-bottom: 12px; }
+        .view-modes label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #c48f7f; margin-bottom: 6px; }
+        .mode-btns { display: flex; gap: 4px; flex-wrap: wrap; }
+        .mode-btn {
+            padding: 6px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;
+            border: 1px solid rgba(200, 143, 127, 0.3); background: rgba(255,255,255,0.05);
+            color: #eae9e5; transition: all 0.2s;
+        }
+        .mode-btn:hover { background: rgba(200, 143, 127, 0.15); }
+        .mode-btn.active { background: rgba(200, 143, 127, 0.3); border-color: #c48f7f; color: #ffd700; }
+
+        .gradient-legend { margin-top: 10px; display: none; }
+        .gradient-legend.visible { display: block; }
+        .gradient-bar { height: 12px; border-radius: 6px; margin: 6px 0 4px; }
+        .gradient-labels { display: flex; justify-content: space-between; font-size: 11px; color: #8a7b6b; }
+        .gradient-title { font-size: 12px; color: #eae9e5; }
 
         .filter-group { margin-bottom: 10px; }
         .filter-group label {
@@ -53,33 +54,22 @@
         .filter-group select option { background: #1a2333; color: #eae9e5; }
 
         .search-results {
-            max-height: 200px; overflow-y: auto; margin-top: 4px;
-            border-radius: 8px; background: rgba(26, 35, 51, 0.98);
-            border: 1px solid rgba(200, 143, 127, 0.3); display: none;
+            position: absolute; top: 100%; left: 0; right: 0; z-index: 20;
+            background: rgba(26, 35, 51, 0.98); border-radius: 0 0 8px 8px;
+            border: 1px solid rgba(200, 143, 127, 0.3); border-top: none;
+            max-height: 200px; overflow-y: auto; display: none;
         }
         .search-results.active { display: block; }
         .search-result {
-            padding: 8px 10px; font-size: 13px; cursor: pointer;
-            border-bottom: 1px solid rgba(200, 143, 127, 0.1);
-            transition: background 0.15s;
+            padding: 8px 10px; cursor: pointer; font-size: 13px;
+            border-bottom: 1px solid rgba(200,143,127,0.1);
         }
         .search-result:hover { background: rgba(200, 143, 127, 0.15); }
-        .search-result .region-name { color: #eae9e5; }
-        .search-result .region-meta { color: #8a7b6b; font-size: 11px; margin-top: 2px; }
-
-        .level-toggles { margin-bottom: 12px; }
-        .level-toggles label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #c48f7f; margin-bottom: 6px; }
-        .level-btns { display: flex; gap: 4px; flex-wrap: wrap; }
-        .level-btn {
-            padding: 6px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;
-            border: 1px solid rgba(200, 143, 127, 0.3); background: rgba(255,255,255,0.05);
-            color: #eae9e5; transition: all 0.2s;
-        }
-        .level-btn:hover { background: rgba(200, 143, 127, 0.15); }
-        .level-btn.active { background: rgba(200, 143, 127, 0.3); border-color: #c48f7f; color: #ffd700; }
+        .search-result .name { color: #ffd700; }
+        .search-result .meta { color: #8a7b6b; font-size: 11px; }
 
         .info-panel {
-            position: absolute; bottom: 24px; right: 16px; z-index: 10;
+            position: absolute; bottom: 24px; left: 16px; z-index: 10;
             background: rgba(26, 35, 51, 0.95); border-radius: 12px; padding: 16px 20px;
             min-width: 300px; max-width: 380px; backdrop-filter: blur(10px);
             border: 1px solid rgba(200, 143, 127, 0.3);
@@ -88,7 +78,7 @@
         .info-panel.active { display: block; }
         .info-panel h2 { font-size: 16px; color: #ffd700; margin-bottom: 4px; }
         .info-panel .classification { font-size: 12px; color: #c48f7f; margin-bottom: 8px; font-style: italic; }
-        .info-panel .detail { font-size: 13px; line-height: 1.6; }
+        .info-panel .detail { font-size: 13px; line-height: 1.8; }
         .info-panel .detail strong { color: #c48f7f; }
         .info-panel .close-btn {
             position: absolute; top: 8px; right: 12px; cursor: pointer;
@@ -98,7 +88,7 @@
 
         .loading {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            z-index: 20; color: #ffd700; font-size: 16px; text-align: center; width: 90%; max-width: 300px;
+            z-index: 20; color: #ffd700; font-size: 16px; text-align: center;
         }
         .loading .spinner {
             width: 40px; height: 40px; border: 3px solid rgba(200,143,127,0.3);
@@ -116,72 +106,76 @@
             .controls { display: none; }
             .controls.open { display: block; top: 50px; left: 8px; right: 8px; min-width: unset; }
             .toggle-controls { display: block; }
-            .info-panel { bottom: 8px; right: 8px; left: 8px; min-width: unset; max-width: unset; }
+            .info-panel { bottom: 8px; left: 8px; right: 8px; min-width: unset; max-width: unset; }
         }
 
-        .zoom-hint {
-            position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
-            z-index: 10; background: rgba(26, 35, 51, 0.9); padding: 8px 16px;
-            border-radius: 20px; font-size: 12px; color: #c48f7f;
-            border: 1px solid rgba(200, 143, 127, 0.2);
-            pointer-events: none; opacity: 0; transition: opacity 0.3s;
-        }
-        .zoom-hint.visible { opacity: 1; }
+        /* Climate legend items */
+        .legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 2px 0; }
+        .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
     </style>
 </head>
 <body>
-    <div id="gmap"></div>
-    <div id="mbmap"></div>
-
+    <div id="map"></div>
     <div class="loading" id="loading">
         <div class="spinner"></div>
-        Initializing maps...
+        Loading wine regions...
     </div>
 
     <button class="toggle-controls" onclick="document.querySelector('.controls').classList.toggle('open')">🍇 Filters</button>
 
     <div class="controls">
         <h1>🍇 WineTrails</h1>
-        <div class="subtitle">World Wine Regions Explorer · Hybrid</div>
+        <div class="subtitle">World Wine Regions Explorer</div>
         <div class="stats">
-            Zoom: <span id="zoom-level">3</span> · Mapbox vector tiles
-            <div style="font-size:11px;color:#8a7b6b;margin-top:2px;">Zoom in for sub-regions</div>
+            <span id="region-count">0</span> regions · <span id="country-count">0</span> countries
         </div>
 
-        <div class="level-toggles">
-            <label>Region Layers</label>
-            <div class="level-btns">
-                <div class="level-btn active" data-level="top" onclick="toggleLevel('top', this)">🌍 Top</div>
-                <div class="level-btn active" data-level="middle" onclick="toggleLevel('middle', this)">📍 Middle</div>
-                <div class="level-btn active" data-level="subregion" onclick="toggleLevel('subregion', this)">🔎 Sub</div>
-                <div class="level-btn active" data-level="labels" onclick="toggleLevel('labels', this)">🏷️ Labels</div>
+        <div class="view-modes">
+            <label>View Mode</label>
+            <div class="mode-btns">
+                <div class="mode-btn active" data-mode="default" onclick="setMode('default')">🌍 Regions</div>
+                <div class="mode-btn" data-mode="gdd" onclick="setMode('gdd')">🌡️ Heat</div>
+                <div class="mode-btn" data-mode="rain" onclick="setMode('rain')">🌧️ Rain</div>
+                <div class="mode-btn" data-mode="climate" onclick="setMode('climate')">☀️ Climate</div>
             </div>
         </div>
 
-        <div class="filter-group">
+        <!-- GDD legend -->
+        <div class="gradient-legend" id="gdd-legend">
+            <div class="gradient-title">🌡️ Growing Degree Days</div>
+            <div class="gradient-bar" style="background: linear-gradient(to right, #2196F3, #4CAF50, #FFC107, #FF5722, #B71C1C);"></div>
+            <div class="gradient-labels"><span>800 Cool</span><span>1400</span><span>2000</span><span>2600 Hot</span></div>
+        </div>
+        <!-- Rainfall legend -->
+        <div class="gradient-legend" id="rain-legend">
+            <div class="gradient-title">🌧️ Annual Precipitation (mm)</div>
+            <div class="gradient-bar" style="background: linear-gradient(to right, #FFC107, #8BC34A, #2196F3, #1565C0, #0D47A1);"></div>
+            <div class="gradient-labels"><span>200 Dry</span><span>600</span><span>1000</span><span>1400+ Wet</span></div>
+        </div>
+        <!-- Climate legend -->
+        <div class="gradient-legend" id="climate-legend">
+            <div class="gradient-title">☀️ Köppen Climate Zones</div>
+            <div style="margin-top: 6px;">
+                <div class="legend-item"><div class="legend-dot" style="background: #FF6F00"></div> Hot Arid</div>
+                <div class="legend-item"><div class="legend-dot" style="background: #FFA726"></div> Warm Arid / Steppe</div>
+                <div class="legend-item"><div class="legend-dot" style="background: #EF5350"></div> Hot Summer, Warm Temperate</div>
+                <div class="legend-item"><div class="legend-dot" style="background: #AB47BC"></div> Humid, Hot Summer</div>
+                <div class="legend-item"><div class="legend-dot" style="background: #66BB6A"></div> Warm Summer, Temperate</div>
+                <div class="legend-item"><div class="legend-dot" style="background: #42A5F5"></div> Cool / Continental</div>
+                <div class="legend-item"><div class="legend-dot" style="background: #5C6BC0"></div> Cold / Snowy</div>
+            </div>
+        </div>
+
+        <div class="filter-group" style="position:relative;">
             <label>Search Regions</label>
             <input type="text" id="search" placeholder="e.g. Barossa, Burgundy, Napa..." oninput="onSearch(this.value)">
             <div class="search-results" id="search-results"></div>
         </div>
-
         <div class="filter-group">
             <label>Country</label>
             <select id="country-filter" onchange="filterByCountry(this.value)">
                 <option value="">All Countries</option>
             </select>
-        </div>
-
-        <div style="margin-top: 14px; border-top: 1px solid rgba(200,143,127,0.2); padding-top: 10px;">
-            <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #c48f7f; margin-bottom: 6px;">Layer Colors</div>
-            <div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:2px 0;">
-                <div style="width:10px;height:10px;border-radius:50%;background:rgba(200,143,127,0.5);flex-shrink:0;"></div> Top-level regions
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:2px 0;">
-                <div style="width:10px;height:10px;border-radius:50%;background:rgba(255,215,0,0.5);flex-shrink:0;"></div> Mid-level regions
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:2px 0;">
-                <div style="width:10px;height:10px;border-radius:50%;background:rgba(100,200,255,0.5);flex-shrink:0;"></div> Sub-regions
-            </div>
         </div>
     </div>
 
@@ -192,511 +186,319 @@
         <div class="detail" id="info-detail"></div>
     </div>
 
-    <div class="zoom-hint" id="zoom-hint">Zoom in to see sub-regions</div>
-
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
     <script>
-    // ─── Configuration ──────────────────────────────────────────────────
+    // ─── Config ─────────────────────────────────────────────────────────
     const MAPBOX_TOKEN = 'pk.eyJ1IjoibWFydGludm9ud3lzcyIsImEiOiJ5UDZqNzlRIn0.C2v_MaFow7-hiueBnq2ELQ';
+    const MARTIN_STYLE = 'mapbox://styles/martinvonwyss/ckmlvgu8djvdi17tfcr5o8moc/draft';
     const LABEL_URLS = {
         top: 'https://worldwineregions.com/wwrmap/top-labels.geojson',
         mid: 'https://worldwineregions.com/wwrmap/mid-labels.geojson',
-        sub: 'https://worldwineregions.com/wwrmap/subregion-labels.geojson'
+        sub: 'https://worldwineregions.com/wwrmap/subregion-labels.geojson',
     };
 
-    // Map polygon region names to WineTrails slugs for CTA buttons
-    const WINETRAILS_REGIONS = {
-        'Bannockburn': 'bannockburn', 'Central Otago': 'gibbston',
-        "Hawke's Bay": 'hawkes-bay', "Hawkes Bay": 'hawkes-bay',
-        'Marlborough': 'marlborough', 'Martinborough': 'martinborough',
-        'Nelson': 'nelson', 'Waiheke Island': 'waiheke-island',
-        'Waipara Valley': 'waipara', 'Waipara': 'waipara',
-        'Waitaki Valley': 'waitaki', 'Waitaki Valley North Otago': 'waitaki',
-        'Wairarapa': 'martinborough',
-    };
-    const WINETRAILS_BASE_URL = 'https://winetrails.io/SelfGuidedDetail';
+    let map;
+    let allLabels = [];     // merged label features from all 3 GeoJSON files
+    let currentMode = 'default';
+    let dataCirclesAdded = false;
 
-    let gmap, mbmap;
-    let syncing = false;
-    let labelData = { top: null, mid: null, sub: null };
-    let allLabels = [];
-    let layerVisibility = { top: true, middle: true, subregion: true, labels: true };
-
-    // Mapbox GL style with ONLY wine region layers, transparent background
-    const WINE_OVERLAY_STYLE = {
-        version: 8,
-        name: 'wine-regions-overlay',
-        sources: {
-            composite: {
-                type: 'vector',
-                url: 'mapbox://martinvonwyss.75poh169,martinvonwyss.3oqku56u,martinvonwyss.8bnug1jj',
-                // These are the three Martin tilesets: top4326, mstr_middle-3ysqay, subrgns4326
+    // ─── GDD color scale ────────────────────────────────────────────────
+    function gddToColor(gdd) {
+        if (!gdd) return 'rgba(100,100,100,0.4)';
+        const stops = [
+            { val: 800, r: 33, g: 150, b: 243 },
+            { val: 1200, r: 76, g: 175, b: 80 },
+            { val: 1600, r: 255, g: 193, b: 7 },
+            { val: 2000, r: 255, g: 87, b: 34 },
+            { val: 2600, r: 183, g: 28, b: 28 },
+        ];
+        if (gdd <= stops[0].val) return `rgb(${stops[0].r},${stops[0].g},${stops[0].b})`;
+        if (gdd >= stops[stops.length-1].val) return `rgb(${stops[stops.length-1].r},${stops[stops.length-1].g},${stops[stops.length-1].b})`;
+        for (let i = 0; i < stops.length - 1; i++) {
+            if (gdd >= stops[i].val && gdd <= stops[i+1].val) {
+                const t = (gdd - stops[i].val) / (stops[i+1].val - stops[i].val);
+                const r = Math.round(stops[i].r + t * (stops[i+1].r - stops[i].r));
+                const g = Math.round(stops[i].g + t * (stops[i+1].g - stops[i].g));
+                const b = Math.round(stops[i].b + t * (stops[i+1].b - stops[i].b));
+                return `rgb(${r},${g},${b})`;
             }
-        },
-        // We intentionally define NO background layer → canvas stays transparent
-        layers: [
-            // ═══════════════════════════════════════════
-            // TOP-LEVEL REGIONS (source-layer: top4326)
-            // ═══════════════════════════════════════════
-            {
-                id: 'top-fill',
-                type: 'fill',
-                source: 'composite',
-                'source-layer': 'top4326',
-                minzoom: 2,
-                maxzoom: 22,
-                paint: {
-                    'fill-color': [
-                        'match', ['get', 'color'],
-                        0, '#8B4513',
-                        1, '#A0522D',
-                        2, '#CD853F',
-                        3, '#DEB887',
-                        4, '#D2691E',
-                        5, '#B8860B',
-                        '#996633'
-                    ],
-                    'fill-opacity': [
-                        'interpolate', ['linear'], ['zoom'],
-                        2, 0.15,
-                        5, 0.2,
-                        8, 0.1,
-                        10, 0.05
-                    ]
-                }
-            },
-            {
-                id: 'top-line',
-                type: 'line',
-                source: 'composite',
-                'source-layer': 'top4326',
-                minzoom: 2,
-                paint: {
-                    'line-color': '#c48f7f',
-                    'line-opacity': [
-                        'interpolate', ['linear'], ['zoom'],
-                        2, 0.4,
-                        5, 0.6,
-                        8, 0.4,
-                        12, 0.2
-                    ],
-                    'line-width': [
-                        'interpolate', ['linear'], ['zoom'],
-                        2, 0.5,
-                        5, 1.2,
-                        8, 1.5,
-                        12, 0.8
-                    ]
-                }
-            },
-            {
-                id: 'top-line-bands',
-                type: 'line',
-                source: 'composite',
-                'source-layer': 'top4326',
-                minzoom: 3,
-                maxzoom: 9,
-                paint: {
-                    'line-color': [
-                        'match', ['get', 'color'],
-                        0, '#8B4513',
-                        1, '#A0522D',
-                        2, '#CD853F',
-                        3, '#DEB887',
-                        4, '#D2691E',
-                        5, '#B8860B',
-                        '#996633'
-                    ],
-                    'line-opacity': 0.5,
-                    'line-width': [
-                        'interpolate', ['linear'], ['zoom'],
-                        3, 2,
-                        6, 4,
-                        9, 2
-                    ],
-                    'line-offset': -2,
-                }
-            },
-
-            // ═══════════════════════════════════════════
-            // MID-LEVEL REGIONS (source-layer: mstr_middle-3ysqay)
-            // ═══════════════════════════════════════════
-            {
-                id: 'middle-fill',
-                type: 'fill',
-                source: 'composite',
-                'source-layer': 'mstr_middle-3ysqay',
-                minzoom: 5,
-                paint: {
-                    'fill-color': '#ffd700',
-                    'fill-opacity': [
-                        'interpolate', ['linear'], ['zoom'],
-                        5, 0.0,
-                        6, 0.08,
-                        8, 0.15,
-                        11, 0.1,
-                        14, 0.05
-                    ]
-                }
-            },
-            {
-                id: 'middle-line',
-                type: 'line',
-                source: 'composite',
-                'source-layer': 'mstr_middle-3ysqay',
-                minzoom: 5,
-                paint: {
-                    'line-color': '#ffd700',
-                    'line-opacity': [
-                        'interpolate', ['linear'], ['zoom'],
-                        5, 0.0,
-                        6, 0.3,
-                        8, 0.5,
-                        12, 0.4,
-                        15, 0.2
-                    ],
-                    'line-width': [
-                        'interpolate', ['linear'], ['zoom'],
-                        5, 0.3,
-                        8, 1,
-                        12, 1.5,
-                        15, 0.8
-                    ]
-                }
-            },
-            {
-                id: 'middle-line-bands',
-                type: 'line',
-                source: 'composite',
-                'source-layer': 'mstr_middle-3ysqay',
-                minzoom: 6,
-                maxzoom: 12,
-                paint: {
-                    'line-color': '#ffd700',
-                    'line-opacity': 0.3,
-                    'line-width': [
-                        'interpolate', ['linear'], ['zoom'],
-                        6, 2,
-                        9, 3,
-                        12, 2
-                    ],
-                    'line-offset': -2
-                }
-            },
-
-            // ═══════════════════════════════════════════
-            // SUB-REGIONS (source-layer: subrgns4326)
-            // ═══════════════════════════════════════════
-            {
-                id: 'subregion-fill',
-                type: 'fill',
-                source: 'composite',
-                'source-layer': 'subrgns4326',
-                minzoom: 8,
-                paint: {
-                    'fill-color': '#64c8ff',
-                    'fill-opacity': [
-                        'interpolate', ['linear'], ['zoom'],
-                        8, 0.0,
-                        9, 0.08,
-                        11, 0.15,
-                        14, 0.1
-                    ]
-                }
-            },
-            {
-                id: 'subregion-line',
-                type: 'line',
-                source: 'composite',
-                'source-layer': 'subrgns4326',
-                minzoom: 8,
-                paint: {
-                    'line-color': '#64c8ff',
-                    'line-opacity': [
-                        'interpolate', ['linear'], ['zoom'],
-                        8, 0.0,
-                        9, 0.4,
-                        11, 0.6,
-                        14, 0.4
-                    ],
-                    'line-width': [
-                        'interpolate', ['linear'], ['zoom'],
-                        8, 0.3,
-                        11, 1,
-                        14, 1.5
-                    ]
-                }
-            },
-            {
-                id: 'subregion-line-bands',
-                type: 'line',
-                source: 'composite',
-                'source-layer': 'subrgns4326',
-                minzoom: 9,
-                maxzoom: 15,
-                paint: {
-                    'line-color': '#64c8ff',
-                    'line-opacity': 0.25,
-                    'line-width': [
-                        'interpolate', ['linear'], ['zoom'],
-                        9, 1.5,
-                        12, 3,
-                        15, 1.5
-                    ],
-                    'line-offset': -2
-                }
-            },
-        ],
-        // Glyphs needed for any text labels we might add
-        glyphs: 'mapbox://fonts/martinvonwyss/{fontstack}/{range}.pbf',
-        sprite: 'mapbox://sprites/martinvonwyss/ckmlvgu8djvdi17tfcr5o8moc/draft'
-    };
-
-    // Google Maps dark theme styles (same as index.html)
-    const GMAP_STYLES = [
-        { elementType: 'geometry', stylers: [{ color: '#1a2333' }] },
-        { elementType: 'labels.text.stroke', stylers: [{ color: '#1a2333' }] },
-        { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] },
-        { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#8a7b6b' }] },
-        { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-        { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#222d3d' }] },
-        { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#1a2333' }] },
-        { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#2a3444' }] },
-        { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-        { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1626' }] },
-        { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#3d5568' }] },
-        { featureType: 'administrative.country', elementType: 'geometry.stroke', stylers: [{ color: '#3d5568' }] },
-    ];
-
-    // ─── Initialize ─────────────────────────────────────────────────────
-
-        // Called by Google Maps script callback
-    function initGmap() {
-        initGoogleMap();
-        // Sync immediately if Mapbox already loaded
-        if (mbmap) syncGmapFromMapbox();
-    }
-
-    // Called immediately on page load (no Google dependency)
-    function initMapbox() {
-        initMapboxOverlay();
-        loadLabelData();
-    }
-
-    // Legacy callback (in case referenced)
-    function initApp() {
-        initGoogleMap();
-        initMapboxOverlay();
-        loadLabelData();
-    }
-
-    function initGoogleMap() {
-        gmap = new google.maps.Map(document.getElementById('gmap'), {
-            center: { lat: 30, lng: 10 },
-            zoom: 3,
-            styles: GMAP_STYLES,
-            mapTypeControl: false,
-            streetViewControl: false,
-            fullscreenControl: false,
-            zoomControl: false,        // Mapbox has its own on top
-            gestureHandling: 'auto',
-            // Disable all mouse interaction — Mapbox handles it
-            draggable: false,
-            scrollwheel: false,
-            disableDoubleClickZoom: true,
-            keyboardShortcuts: false,
-        });
-    }
-
-    function initMapboxOverlay() {
-        mapboxgl.accessToken = MAPBOX_TOKEN;
-
-        mbmap = new mapboxgl.Map({
-            container: 'mbmap',
-            style: WINE_OVERLAY_STYLE,
-            center: [10, 30],
-            zoom: 2,  // Mapbox zoom is ~1 less than Google at same view
-            attributionControl: false,
-            preserveDrawingBuffer: true,
-        });
-
-        // Add compact nav controls
-        mbmap.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'bottom-left');
-
-        mbmap.on('load', () => {
-            document.getElementById('loading').style.display = 'none';
-            addLabelLayers();
-            // Initial sync Google ← Mapbox
-            syncGmapFromMapbox();
-        });
-
-        // Sync Google Maps when Mapbox viewport changes (user interaction goes to Mapbox)
-        mbmap.on('move', () => {
-            if (!syncing) syncGmapFromMapbox();
-        });
-
-        mbmap.on('zoomend', () => {
-            document.getElementById('zoom-level').textContent = Math.round(mbmap.getZoom());
-            // Show hint at low zoom
-            const hint = document.getElementById('zoom-hint');
-            if (mbmap.getZoom() < 5) {
-                hint.classList.add('visible');
-                clearTimeout(hint._timer);
-                hint._timer = setTimeout(() => hint.classList.remove('visible'), 3000);
-            }
-        });
-
-        // Click interaction on the Mapbox wine region polygons
-        const clickableLayers = ['top-fill', 'middle-fill', 'subregion-fill'];
-        clickableLayers.forEach(layerId => {
-            mbmap.on('click', layerId, (e) => {
-                if (e.features && e.features.length > 0) {
-                    showRegionInfo(e.features[0], e.lngLat, layerId);
-                }
-            });
-        });
-
-        // Hover cursor
-        clickableLayers.forEach(layerId => {
-            mbmap.on('mouseenter', layerId, () => {
-                mbmap.getCanvas().style.cursor = 'pointer';
-            });
-            mbmap.on('mouseleave', layerId, () => {
-                mbmap.getCanvas().style.cursor = '';
-            });
-        });
-
-        // Also allow clicking on the label point layers (added later)
-        mbmap.on('click', 'label-points-top', (e) => handleLabelClick(e, 'top'));
-        mbmap.on('click', 'label-points-mid', (e) => handleLabelClick(e, 'mid'));
-        mbmap.on('click', 'label-points-sub', (e) => handleLabelClick(e, 'sub'));
-    }
-
-    // ─── Viewport Sync ─────────────────────────────────────────────────
-
-    function syncGmapFromMapbox() {
-        if (!mbmap) return;
-        syncing = true;
-        const center = mbmap.getCenter();
-        const zoom = mbmap.getZoom();
-        // Google Maps zoom ≈ Mapbox zoom + 1 at equivalent views
-        if (gmap) {
-            gmap.setCenter({ lat: center.lat, lng: center.lng });
-            gmap.setZoom(Math.round(zoom + 1));
         }
-        syncing = false;
+        return 'rgba(100,100,100,0.4)';
     }
 
-    // ─── Label Data (for search + click info) ───────────────────────────
+    // ─── Rainfall color scale ───────────────────────────────────────────
+    function rainToColor(mm) {
+        if (!mm) return 'rgba(100,100,100,0.4)';
+        const stops = [
+            { val: 200, r: 255, g: 193, b: 7 },
+            { val: 600, r: 139, g: 195, b: 74 },
+            { val: 1000, r: 33, g: 150, b: 243 },
+            { val: 1400, r: 21, g: 101, b: 192 },
+        ];
+        if (mm <= stops[0].val) return `rgb(${stops[0].r},${stops[0].g},${stops[0].b})`;
+        if (mm >= stops[stops.length-1].val) return `rgb(${stops[stops.length-1].r},${stops[stops.length-1].g},${stops[stops.length-1].b})`;
+        for (let i = 0; i < stops.length - 1; i++) {
+            if (mm >= stops[i].val && mm <= stops[i+1].val) {
+                const t = (mm - stops[i].val) / (stops[i+1].val - stops[i].val);
+                const r = Math.round(stops[i].r + t * (stops[i+1].r - stops[i].r));
+                const g = Math.round(stops[i].g + t * (stops[i+1].g - stops[i].g));
+                const b = Math.round(stops[i].b + t * (stops[i+1].b - stops[i].b));
+                return `rgb(${r},${g},${b})`;
+            }
+        }
+        return `rgb(${stops[stops.length-1].r},${stops[stops.length-1].g},${stops[stops.length-1].b})`;
+    }
 
+    // ─── Climate color scale ────────────────────────────────────────────
+    function climateToColor(climate) {
+        if (!climate) return 'rgba(100,100,100,0.4)';
+        const c = climate.toLowerCase();
+        if (c.includes('hot') && (c.includes('arid') || c.includes('desert'))) return '#FF6F00';
+        if (c.includes('arid') || c.includes('steppe') || c.includes('semi-arid')) return '#FFA726';
+        if (c.includes('hot summer') && c.includes('temperate')) return '#EF5350';
+        if (c.includes('humid') && c.includes('hot')) return '#AB47BC';
+        if (c.includes('warm summer') || c.includes('oceanic') || (c.includes('temperate') && !c.includes('hot'))) return '#66BB6A';
+        if (c.includes('cool') || c.includes('continental')) return '#42A5F5';
+        if (c.includes('cold') || c.includes('snow') || c.includes('subarctic')) return '#5C6BC0';
+        if (c.includes('mediterranean') || c.includes('dry summer')) return '#EF5350';
+        return '#66BB6A'; // default temperate
+    }
+
+    // ─── Init Map ───────────────────────────────────────────────────────
+    mapboxgl.accessToken = MAPBOX_TOKEN;
+
+    map = new mapboxgl.Map({
+        container: 'map',
+        style: MARTIN_STYLE,
+        center: [10, 30],
+        zoom: 2,
+        attributionControl: false,
+    });
+
+    map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'bottom-right');
+    map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-right');
+
+    map.on('load', () => {
+        document.getElementById('loading').style.display = 'none';
+        loadLabelData();
+
+        // Click on wine region polygons for info
+        const fillLayers = ['top-fill', 'top4326', 'middle-fill', 'middle-fill-highlight', 'subregion-fill'];
+        fillLayers.forEach(layer => {
+            if (map.getLayer(layer)) {
+                map.on('click', layer, (e) => {
+                    if (e.features && e.features.length > 0) {
+                        showRegionInfo(e.features[0].properties, e.lngLat);
+                        e.originalEvent.stopPropagation();
+                    }
+                });
+                map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
+                map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
+            }
+        });
+
+        // Click on empty area closes panel
+        map.on('click', (e) => {
+            // Check if click hit any wine region
+            const features = map.queryRenderedFeatures(e.point, { layers: fillLayers.filter(l => map.getLayer(l)) });
+            if (features.length === 0) closeInfo();
+        });
+    });
+
+    // ─── Load Label Data ────────────────────────────────────────────────
     async function loadLabelData() {
-        const results = await Promise.allSettled([
-            fetch(LABEL_URLS.top).then(r => r.json()),
-            fetch(LABEL_URLS.mid).then(r => r.json()),
-            fetch(LABEL_URLS.sub).then(r => r.json()),
-        ]);
+        try {
+            const [topRes, midRes, subRes] = await Promise.all([
+                fetch(LABEL_URLS.top).then(r => r.json()),
+                fetch(LABEL_URLS.mid).then(r => r.json()),
+                fetch(LABEL_URLS.sub).then(r => r.json()),
+            ]);
 
-        if (results[0].status === 'fulfilled') labelData.top = results[0].value;
-        if (results[1].status === 'fulfilled') labelData.mid = results[1].value;
-        if (results[2].status === 'fulfilled') labelData.sub = results[2].value;
+            allLabels = [
+                ...topRes.features.map(f => ({ ...f, _tier: 'top' })),
+                ...midRes.features.map(f => ({ ...f, _tier: 'mid' })),
+                ...subRes.features.map(f => ({ ...f, _tier: 'sub' })),
+            ];
 
-        // Build flat array for search
-        ['top', 'mid', 'sub'].forEach(level => {
-            if (!labelData[level]) return;
-            labelData[level].features.forEach(f => {
-                allLabels.push({ ...f, _level: level });
+            // Stats
+            const countries = new Set(allLabels.map(f => f.properties.country).filter(Boolean));
+            document.getElementById('region-count').textContent = allLabels.length.toLocaleString();
+            document.getElementById('country-count').textContent = countries.size;
+
+            // Populate country dropdown
+            const select = document.getElementById('country-filter');
+            [...countries].sort().forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c; opt.textContent = c;
+                select.appendChild(opt);
             });
-        });
 
-        populateCountryFilter();
-        addLabelLayers();
+            // Add label data as a source for data overlay modes
+            const geojson = {
+                type: 'FeatureCollection',
+                features: allLabels.map(f => ({
+                    type: 'Feature',
+                    geometry: f.geometry,
+                    properties: { ...f.properties, _tier: f._tier }
+                }))
+            };
+            map.addSource('label-data', { type: 'geojson', data: geojson });
+
+        } catch (err) {
+            console.error('Failed to load label data:', err);
+        }
     }
 
-    function addLabelLayers() {
-        if (!mbmap || !mbmap.isStyleLoaded()) return;
+    // ─── Data overlay circles (GDD, Rain, Climate modes) ───────────────
+    function addDataCircles(mode) {
+        // Remove old data circles
+        if (map.getLayer('data-circles')) map.removeLayer('data-circles');
+        if (map.getLayer('data-labels')) map.removeLayer('data-labels');
 
-        ['top', 'mid', 'sub'].forEach(level => {
-            const data = labelData[level];
-            if (!data) return;
+        if (!map.getSource('label-data')) return;
 
-            const sourceId = `labels-${level}`;
-            const pointLayerId = `label-points-${level}`;
-            const textLayerId = `label-text-${level}`;
+        // Build color expression based on mode
+        let circleColor, labelField;
+        if (mode === 'gdd') {
+            // Step-based color for GDD
+            circleColor = [
+                'interpolate', ['linear'], ['get', 'GDD_1'],
+                800, '#2196F3',
+                1200, '#4CAF50',
+                1600, '#FFC107',
+                2000, '#FF5722',
+                2600, '#B71C1C'
+            ];
+            labelField = ['concat', ['to-string', ['get', 'GDD_1']], ' GDD'];
+        } else if (mode === 'rain') {
+            circleColor = [
+                'interpolate', ['linear'], ['get', 'ppt_yr'],
+                200, '#FFC107',
+                600, '#8BC34A',
+                1000, '#2196F3',
+                1400, '#0D47A1'
+            ];
+            labelField = ['concat', ['to-string', ['get', 'ppt_yr']], 'mm'];
+        } else {
+            return; // climate uses different approach
+        }
 
-            if (mbmap.getSource(sourceId)) return; // Already added
+        map.addLayer({
+            id: 'data-circles',
+            type: 'circle',
+            source: 'label-data',
+            paint: {
+                'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, 4, 6, 8, 10, 14],
+                'circle-color': circleColor,
+                'circle-opacity': 0.85,
+                'circle-stroke-color': 'rgba(255,255,255,0.4)',
+                'circle-stroke-width': 1,
+            },
+            filter: ['has', mode === 'gdd' ? 'GDD_1' : 'ppt_yr'],
+        });
 
-            mbmap.addSource(sourceId, { type: 'geojson', data });
-
-            // Invisible clickable point layer
-            mbmap.addLayer({
-                id: pointLayerId,
-                type: 'circle',
-                source: sourceId,
-                paint: {
-                    'circle-radius': 6,
-                    'circle-opacity': 0,
-                    'circle-stroke-opacity': 0,
-                }
-            });
-
-            // Text labels
-            const minZooms = { top: 3, mid: 6, sub: 9 };
-            const textSizes = { top: 13, mid: 12, sub: 11 };
-            const textColors = { top: '#eae9e5', mid: '#ddd8cc', sub: '#bbb5a5' };
-
-            mbmap.addLayer({
-                id: textLayerId,
-                type: 'symbol',
-                source: sourceId,
-                minzoom: minZooms[level],
-                layout: {
-                    'text-field': ['coalesce', ['get', 'name'], ['get', 'Name_rgn'], ['get', 'region'], ''],
-                    'text-size': [
-                        'interpolate', ['linear'], ['zoom'],
-                        minZooms[level], textSizes[level] - 2,
-                        minZooms[level] + 3, textSizes[level],
-                        minZooms[level] + 6, textSizes[level] + 2,
-                    ],
-                    'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
-                    'text-anchor': 'center',
-                    'text-allow-overlap': false,
-                    'text-ignore-placement': false,
-                    'text-padding': 8,
-                    'text-max-width': 10,
-                    'visibility': 'visible',
-                },
-                paint: {
-                    'text-color': textColors[level],
-                    'text-halo-color': 'rgba(26, 35, 51, 0.9)',
-                    'text-halo-width': 1.5,
-                    'text-opacity': [
-                        'interpolate', ['linear'], ['zoom'],
-                        minZooms[level], 0,
-                        minZooms[level] + 0.5, 0.9,
-                    ]
-                }
-            });
+        map.addLayer({
+            id: 'data-labels',
+            type: 'symbol',
+            source: 'label-data',
+            layout: {
+                'text-field': labelField,
+                'text-size': ['interpolate', ['linear'], ['zoom'], 4, 9, 8, 12],
+                'text-offset': [0, 1.5],
+                'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+            },
+            paint: {
+                'text-color': '#eae9e5',
+                'text-halo-color': 'rgba(26, 35, 51, 0.9)',
+                'text-halo-width': 1,
+            },
+            filter: ['has', mode === 'gdd' ? 'GDD_1' : 'ppt_yr'],
+            minzoom: 5,
         });
     }
 
-    function populateCountryFilter() {
-        const countries = new Set();
-        allLabels.forEach(f => {
-            const c = f.properties.country || f.properties.Country;
-            if (c) countries.add(c);
+    function addClimateCircles() {
+        if (map.getLayer('data-circles')) map.removeLayer('data-circles');
+        if (map.getLayer('data-labels')) map.removeLayer('data-labels');
+        if (!map.getSource('label-data')) return;
+
+        // For climate we need to color by string matching — use a case expression
+        // We'll add the color as a property first
+        const features = allLabels.map(f => ({
+            type: 'Feature',
+            geometry: f.geometry,
+            properties: {
+                ...f.properties,
+                _tier: f._tier,
+                _climateColor: climateToColor(f.properties.climate),
+            }
+        }));
+        map.getSource('label-data').setData({ type: 'FeatureCollection', features });
+
+        map.addLayer({
+            id: 'data-circles',
+            type: 'circle',
+            source: 'label-data',
+            paint: {
+                'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, 4, 6, 8, 10, 14],
+                'circle-color': ['get', '_climateColor'],
+                'circle-opacity': 0.85,
+                'circle-stroke-color': 'rgba(255,255,255,0.4)',
+                'circle-stroke-width': 1,
+            },
+            filter: ['has', 'climate'],
         });
-        const sorted = [...countries].sort();
-        const sel = document.getElementById('country-filter');
-        sorted.forEach(c => {
-            const opt = document.createElement('option');
-            opt.value = c;
-            opt.textContent = c;
-            sel.appendChild(opt);
+
+        map.addLayer({
+            id: 'data-labels',
+            type: 'symbol',
+            source: 'label-data',
+            layout: {
+                'text-field': ['get', 'climate'],
+                'text-size': ['interpolate', ['linear'], ['zoom'], 4, 8, 8, 11],
+                'text-offset': [0, 1.5],
+                'text-max-width': 10,
+                'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+            },
+            paint: {
+                'text-color': '#eae9e5',
+                'text-halo-color': 'rgba(26, 35, 51, 0.9)',
+                'text-halo-width': 1,
+            },
+            filter: ['has', 'climate'],
+            minzoom: 6,
         });
+    }
+
+    // ─── View Modes ─────────────────────────────────────────────────────
+    function setMode(mode) {
+        currentMode = mode;
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+
+        // Hide all legends
+        document.getElementById('gdd-legend').classList.remove('visible');
+        document.getElementById('rain-legend').classList.remove('visible');
+        document.getElementById('climate-legend').classList.remove('visible');
+
+        // Remove data circles
+        if (map.getLayer('data-circles')) map.removeLayer('data-circles');
+        if (map.getLayer('data-labels')) map.removeLayer('data-labels');
+
+        if (mode === 'default') {
+            // Martin's style handles everything
+        } else if (mode === 'gdd') {
+            document.getElementById('gdd-legend').classList.add('visible');
+            addDataCircles('gdd');
+        } else if (mode === 'rain') {
+            document.getElementById('rain-legend').classList.add('visible');
+            addDataCircles('rain');
+        } else if (mode === 'climate') {
+            document.getElementById('climate-legend').classList.add('visible');
+            addClimateCircles();
+        }
     }
 
     // ─── Search ─────────────────────────────────────────────────────────
-
     function onSearch(query) {
         const resultsDiv = document.getElementById('search-results');
         if (!query || query.length < 2) {
@@ -704,11 +506,14 @@
             return;
         }
         const q = query.toLowerCase();
-        const matches = allLabels.filter(f => {
-            const name = (f.properties.name || f.properties.Name_rgn || f.properties.region || '').toLowerCase();
-            const country = (f.properties.country || f.properties.Country || '').toLowerCase();
-            return name.includes(q) || country.includes(q);
-        }).slice(0, 15);
+        const matches = allLabels
+            .filter(f => {
+                const p = f.properties;
+                return (p.Name_rgn || '').toLowerCase().includes(q) ||
+                       (p.altname || '').toLowerCase().includes(q) ||
+                       (p.country || '').toLowerCase().includes(q);
+            })
+            .slice(0, 15);
 
         if (matches.length === 0) {
             resultsDiv.classList.remove('active');
@@ -716,215 +521,98 @@
         }
 
         resultsDiv.innerHTML = matches.map((f, i) => {
-            const name = f.properties.name || f.properties.Name_rgn || f.properties.region || 'Unknown';
-            const country = f.properties.country || f.properties.Country || '';
-            const level = f._level === 'top' ? '🌍' : f._level === 'mid' ? '📍' : '🔎';
-            return `<div class="search-result" onclick="flyToLabel(${i})" data-idx="${i}">
-                <div class="region-name">${level} ${name}</div>
-                <div class="region-meta">${country} · ${f._level}</div>
+            const p = f.properties;
+            return `<div class="search-result" onclick="flyToRegion(${i})">
+                <div class="name">${p.Name_rgn}${p.altname ? ' (' + p.altname + ')' : ''}</div>
+                <div class="meta">${p.class || ''} · ${p.country || ''}</div>
             </div>`;
         }).join('');
         resultsDiv.classList.add('active');
 
-        // Store current results for click handler
+        // Store matches for click handling
         resultsDiv._matches = matches;
     }
 
-    function flyToLabel(idx) {
+    function flyToRegion(idx) {
         const resultsDiv = document.getElementById('search-results');
-        const f = resultsDiv._matches[idx];
-        if (!f) return;
-
-        const coords = f.geometry.coordinates;
-        const targetZoom = f._level === 'top' ? 5 : f._level === 'mid' ? 8 : 11;
-
-        mbmap.flyTo({
-            center: coords,
-            zoom: targetZoom,
-            duration: 1500
-        });
+        const feature = resultsDiv._matches[idx];
+        if (!feature) return;
 
         resultsDiv.classList.remove('active');
-        document.getElementById('search').value = f.properties.name || f.properties.Name_rgn || '';
+        document.getElementById('search').value = feature.properties.Name_rgn;
 
-        // Show info
-        showLabelInfo(f);
+        const p = feature.properties;
+        if (p._bbox) {
+            map.fitBounds(p._bbox, { padding: 60, maxZoom: 12 });
+        } else {
+            map.flyTo({ center: feature.geometry.coordinates, zoom: 8 });
+        }
+        showRegionInfo(p, { lng: feature.geometry.coordinates[0], lat: feature.geometry.coordinates[1] });
     }
 
     // ─── Country Filter ─────────────────────────────────────────────────
-
     function filterByCountry(country) {
         if (!country) {
-            // Reset — show all, fly to world view
-            mbmap.flyTo({ center: [10, 30], zoom: 2, duration: 1000 });
+            map.flyTo({ center: [10, 30], zoom: 2 });
             return;
         }
+        const countryFeatures = allLabels.filter(f => f.properties.country === country);
+        if (countryFeatures.length === 0) return;
 
-        // Find all labels for this country
-        const countryLabels = allLabels.filter(f => {
-            const c = f.properties.country || f.properties.Country || '';
-            return c === country;
-        });
-
-        if (countryLabels.length === 0) return;
-
-        // Compute bounding box
-        let minLng = 180, maxLng = -180, minLat = 90, maxLat = -90;
-        countryLabels.forEach(f => {
-            const [lng, lat] = f.geometry.coordinates;
-            if (lng < minLng) minLng = lng;
-            if (lng > maxLng) maxLng = lng;
-            if (lat < minLat) minLat = lat;
-            if (lat > maxLat) maxLat = lat;
-        });
-
-        mbmap.fitBounds(
-            [[minLng - 1, minLat - 1], [maxLng + 1, maxLat + 1]],
-            { padding: 60, duration: 1500, maxZoom: 10 }
-        );
-    }
-
-    // ─── Layer Toggles ──────────────────────────────────────────────────
-
-    function toggleLevel(level, btn) {
-        layerVisibility[level] = !layerVisibility[level];
-        btn.classList.toggle('active', layerVisibility[level]);
-
-        const vis = layerVisibility[level] ? 'visible' : 'none';
-
-        const layerGroups = {
-            top: ['top-fill', 'top-line', 'top-line-bands'],
-            middle: ['middle-fill', 'middle-line', 'middle-line-bands'],
-            subregion: ['subregion-fill', 'subregion-line', 'subregion-line-bands'],
-            labels: ['label-text-top', 'label-text-mid', 'label-text-sub'],
-        };
-
-        (layerGroups[level] || []).forEach(layerId => {
-            if (mbmap.getLayer(layerId)) {
-                mbmap.setLayoutProperty(layerId, 'visibility', vis);
+        // Fit to bounds of all features in country
+        const bounds = new mapboxgl.LngLatBounds();
+        countryFeatures.forEach(f => {
+            if (f.properties._bbox) {
+                bounds.extend([f.properties._bbox[0], f.properties._bbox[1]]);
+                bounds.extend([f.properties._bbox[2], f.properties._bbox[3]]);
+            } else {
+                bounds.extend(f.geometry.coordinates);
             }
         });
+        map.fitBounds(bounds, { padding: 60, maxZoom: 10 });
     }
 
     // ─── Info Panel ─────────────────────────────────────────────────────
+    function showRegionInfo(props, lngLat) {
+        const panel = document.getElementById('info-panel');
+        document.getElementById('info-name').textContent = props.Name_rgn || props.name || 'Unknown';
+        document.getElementById('info-class').textContent = props.class || '';
 
-    function showRegionInfo(feature, lngLat, layerId) {
-        const props = feature.properties;
-        const name = props.name || props.Name_rgn || props.region || props.NAME || 'Unknown Region';
-
-        // Try to find matching label data for richer info
-        const labelMatch = allLabels.find(f => {
-            const n = (f.properties.name || f.properties.Name_rgn || f.properties.region || '').toLowerCase();
-            return n === name.toLowerCase();
-        });
-
-        const p = labelMatch ? { ...props, ...labelMatch.properties } : props;
-        renderInfoPanel(name, p, layerId, lngLat);
-    }
-
-    function handleLabelClick(e, level) {
-        if (!e.features || e.features.length === 0) return;
-        const f = e.features[0];
-        const name = f.properties.name || f.properties.Name_rgn || f.properties.region || 'Unknown';
-        renderInfoPanel(name, f.properties, `label-${level}`, e.lngLat);
-    }
-
-    function showLabelInfo(labelFeature) {
-        const name = labelFeature.properties.name || labelFeature.properties.Name_rgn || labelFeature.properties.region || 'Unknown';
-        renderInfoPanel(name, labelFeature.properties, `label-${labelFeature._level}`);
-    }
-
-    function renderInfoPanel(name, p, layerHint, lngLat) {
-        document.getElementById('info-name').textContent = name;
-
-        // Classification
-        const levelStr = layerHint.includes('top') ? 'Top-level Region' :
-                        layerHint.includes('mid') ? 'Mid-level Region' :
-                        'Sub-region';
-        document.getElementById('info-class').textContent = (p.class || p.classification || levelStr);
+        // Try to find matching label for full metadata
+        let labelProps = props;
+        if (props.Name_rgn) {
+            const match = allLabels.find(f => f.properties.Name_rgn === props.Name_rgn);
+            if (match) labelProps = { ...match.properties, ...props };
+        }
 
         let detail = '';
-        const country = p.country || p.Country;
-        if (country) detail += `<strong>Country:</strong> ${country}`;
-        if (p.state || p.State) detail += `<br><strong>State/Province:</strong> ${p.state || p.State}`;
-        if (p.GDD_1 || p.gdd) {
-            const gdd = p.GDD_1 || p.gdd;
-            const warmth = gdd < 1000 ? 'Cool' : gdd < 1500 ? 'Moderate' : gdd < 2000 ? 'Warm' : 'Hot';
-            detail += `<br><strong>Growing Degree Days:</strong> ${gdd} (${warmth})`;
-        }
-        if (p.ppt_yr || p.rainfall) {
-            const rain = p.ppt_yr || p.rainfall;
-            const wetness = rain < 400 ? 'Arid' : rain < 700 ? 'Dry' : rain < 1000 ? 'Moderate' : 'Wet';
-            detail += `<br><strong>Annual Rainfall:</strong> ${rain}mm (${wetness})`;
-        }
-        if (p.climate) detail += `<br><strong>Climate:</strong> ${p.climate}`;
-        if (p.altname) detail += `<br><strong>Also known as:</strong> ${p.altname}`;
-        if (p.varieties || p.grapes) detail += `<br><strong>Key Varieties:</strong> ${p.varieties || p.grapes}`;
-        if (p.style) detail += `<br><strong>Style:</strong> ${p.style}`;
+        if (labelProps.country) detail += `<strong>Country:</strong> ${labelProps.country}<br>`;
+        if (labelProps.state) detail += `<strong>State/Region:</strong> ${labelProps.state}<br>`;
+        if (labelProps.altname) detail += `<strong>Also known as:</strong> ${labelProps.altname}<br>`;
+        if (labelProps.GDD_1) detail += `<strong>Growing Degree Days:</strong> ${labelProps.GDD_1}<br>`;
+        if (labelProps.ppt_yr) detail += `<strong>Annual Rainfall:</strong> ${labelProps.ppt_yr} mm<br>`;
+        if (labelProps.ppt_gs) detail += `<strong>Growing Season Rain:</strong> ${labelProps.ppt_gs} mm<br>`;
+        if (labelProps.climate) detail += `<strong>Climate:</strong> ${labelProps.climate}<br>`;
+        if (labelProps.elev) detail += `<strong>Elevation:</strong> ${labelProps.elev}m<br>`;
+        if (labelProps.GI_area) detail += `<strong>GI Area:</strong> ${labelProps.GI_area} ha<br>`;
+        if (labelProps.auv) detail += `<strong>Vineyard Area:</strong> ${labelProps.auv} ha<br>`;
+        if (labelProps.style) detail += `<strong>Varieties:</strong> ${labelProps.style}<br>`;
+        if (labelProps.latitude) detail += `<strong>Latitude:</strong> ${Math.abs(labelProps.latitude).toFixed(2)}° ${labelProps.latitude >= 0 ? 'N' : 'S'}<br>`;
 
-        // WineTrails CTA
-        const slug = WINETRAILS_REGIONS[name];
-        if (slug) {
-            detail += `<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(200,143,127,0.3)">
-                <div style="font-size:11px;color:#c48f7f;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">🍇 Available on WineTrails</div>
-                <a href="${WINETRAILS_BASE_URL}?slug=${slug}" target="_blank" style="
-                    display:inline-block;padding:10px 20px;border-radius:10px;
-                    background:linear-gradient(135deg,#b8860b,#ffd700);color:#1a2333;
-                    font-weight:700;font-size:14px;text-decoration:none;cursor:pointer;
-                    transition:transform 0.2s;
-                " onmouseover="this.style.transform='scale(1.03)'" onmouseout="this.style.transform='scale(1)'">
-                    Generate Tour →
-                </a>
-            </div>`;
-        }
-
-        // Coordinates
-        if (lngLat) {
-            detail += `<br><span style="font-size:11px;color:#8a7b6b">${lngLat.lat.toFixed(3)}°, ${lngLat.lng.toFixed(3)}°</span>`;
-        }
-
-        document.getElementById('info-detail').innerHTML = detail;
-        document.getElementById('info-panel').classList.add('active');
+        document.getElementById('info-detail').innerHTML = detail || 'Zoom in for more detail.';
+        panel.classList.add('active');
     }
 
     function closeInfo() {
         document.getElementById('info-panel').classList.remove('active');
     }
 
-    // Close info panel on map click (not on a feature)
-    document.addEventListener('DOMContentLoaded', () => {
-        // Close panel if clicking on map area with no feature
-        // (Handled by Mapbox click bubbling — feature clicks call e.stopPropagation isn't needed;
-        //  we close on empty map click instead)
+    // Close search on click outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.filter-group')) {
+            document.getElementById('search-results').classList.remove('active');
+        }
     });
-
-    // ─── Bootstrap ──────────────────────────────────────────────────────
-
-    const params = new URLSearchParams(window.location.search);
-    let apiKey = params.get('key');
-    if (!apiKey && window.location.hash.includes('key=')) {
-        apiKey = window.location.hash.split('key=')[1];
-    }
-    // Strip any trailing junk (e.g. ** from WhatsApp bold formatting)
-    if (apiKey) apiKey = apiKey.replace(/[^A-Za-z0-9_\-]/g, '');
-
-    // Always init Mapbox first (doesn't need Google Maps)
-    initMapbox();
-
-    if (!apiKey) {
-        // No key — Mapbox-only mode, skip Google Maps
-        document.getElementById('loading').style.display = 'none';
-    } else {
-        const s = document.createElement('script');
-        s.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initGmap`;
-        s.async = true;
-        s.defer = true;
-        s.onerror = function() {
-            console.warn('Google Maps failed to load — running Mapbox-only');
-            document.getElementById('loading').style.display = 'none';
-        };
-        document.head.appendChild(s);
-    }
     </script>
 </body>
 </html>
