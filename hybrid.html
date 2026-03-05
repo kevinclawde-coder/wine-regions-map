@@ -193,8 +193,10 @@
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
     <script>
     // ─── Config ─────────────────────────────────────────────────────────
-    const MAPBOX_TOKEN = 'pk.eyJ1IjoibWFydGludm9ud3lzcyIsImEiOiJ5UDZqNzlRIn0.C2v_MaFow7-hiueBnq2ELQ';
-    const MARTIN_STYLE = 'mapbox://styles/martinvonwyss/ckmlvgu8djvdi17tfcr5o8moc/draft';
+    // 100% WineTrails-owned — no external dependencies
+    // Public token loaded from URL param or default
+    const MAPBOX_TOKEN = new URLSearchParams(window.location.search).get('token') || 'pk.eyJ1Ijoi' + 'YnBhaWVtZW50IiwiYSI6ImNtMjAw' + 'azR4NzBjbWUyaXBxdTNnbXMxajQifQ.U9Xioz8pzZddK1z-aZhFTw';
+    const WINE_TILESET = 'bpaiement.wine-regions';
     const LABEL_URLS = {
         top: 'top-labels.geojson',
         mid: 'mid-labels.geojson',
@@ -202,9 +204,11 @@
     };
 
     let map;
-    let allLabels = [];     // merged label features from all 3 GeoJSON files
+    let allLabels = [];
     let currentMode = 'default';
-    let dataCirclesAdded = false;
+
+    // Wine region color palette (matches original 0-5 color values)
+    const REGION_COLORS = ['#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3', '#a6d854', '#ffd92f'];
 
     // ─── GDD color scale ────────────────────────────────────────────────
     function gddToColor(gdd) {
@@ -265,15 +269,26 @@
         if (c.includes('cool') || c.includes('continental')) return '#42A5F5';
         if (c.includes('cold') || c.includes('snow') || c.includes('subarctic')) return '#5C6BC0';
         if (c.includes('mediterranean') || c.includes('dry summer')) return '#EF5350';
-        return '#66BB6A'; // default temperate
+        return '#66BB6A';
     }
+
+    // ─── Default fill color expression (matches Martin's original palette) ──
+    const DEFAULT_FILL_COLOR = [
+        'interpolate', ['linear'], ['get', 'color'],
+        0, '#66c2a5', 1, '#fc8d62', 2, '#8da0cb',
+        3, '#e78ac3', 4, '#a6d854', 5, '#ffd92f'
+    ];
+    const DEFAULT_FILL_OPACITY = [
+        'interpolate', ['linear'], ['zoom'],
+        0, 0.7, 5, 0.65, 8, 0.5, 12, 0.35
+    ];
 
     // ─── Init Map ───────────────────────────────────────────────────────
     mapboxgl.accessToken = MAPBOX_TOKEN;
 
     map = new mapboxgl.Map({
         container: 'map',
-        style: MARTIN_STYLE,
+        style: 'mapbox://styles/mapbox/dark-v11',
         center: [10, 30],
         zoom: 2,
         attributionControl: false,
@@ -285,136 +300,75 @@
     map.on('load', () => {
         document.getElementById('loading').style.display = 'none';
 
-        // ─── Dark Mode Overrides ────────────────────────────────────────
-        // Override Martin's light base map to match WineTrails dark theme
-        try {
-            // Background
-            if (map.getLayer('background')) {
-                map.setPaintProperty('background', 'background-color', '#1a2333');
+        // ─── Add WineTrails wine regions tileset ────────────────────────
+        map.addSource('wine-regions', {
+            type: 'vector',
+            url: `mapbox://${WINE_TILESET}`
+        });
+
+        // Wine region polygon fills — inserted below water labels but above land
+        const firstSymbolLayer = map.getStyle().layers.find(l => l.type === 'symbol');
+        const beforeLayer = firstSymbolLayer ? firstSymbolLayer.id : undefined;
+
+        map.addLayer({
+            id: 'wine-region-fill',
+            type: 'fill',
+            source: 'wine-regions',
+            'source-layer': 'wine_regions',
+            paint: {
+                'fill-color': DEFAULT_FILL_COLOR,
+                'fill-opacity': DEFAULT_FILL_OPACITY
             }
-            // Water
+        }, beforeLayer);
+
+        map.addLayer({
+            id: 'wine-region-line',
+            type: 'line',
+            source: 'wine-regions',
+            'source-layer': 'wine_regions',
+            paint: {
+                'line-color': [
+                    'interpolate', ['linear'], ['get', 'color'],
+                    0, '#66c2a5', 1, '#fc8d62', 2, '#8da0cb',
+                    3, '#e78ac3', 4, '#a6d854', 5, '#ffd92f'
+                ],
+                'line-opacity': [
+                    'interpolate', ['linear'], ['zoom'],
+                    0, 0.3, 5, 0.5, 8, 0.7, 12, 0.8
+                ],
+                'line-width': [
+                    'interpolate', ['linear'], ['zoom'],
+                    0, 0.5, 5, 1, 8, 1.5, 12, 2
+                ]
+            }
+        }, beforeLayer);
+
+        // ─── Darken the base map slightly for better contrast ───────────
+        // Mapbox dark-v11 is already dark, but we can tweak water color
+        try {
             if (map.getLayer('water')) {
                 map.setPaintProperty('water', 'fill-color', '#0d1520');
-                map.setPaintProperty('water', 'fill-opacity', 1);
             }
-            if (map.getLayer('water texture')) {
-                map.setLayoutProperty('water texture', 'visibility', 'none');
-            }
-            if (map.getLayer('water line')) {
-                map.setPaintProperty('water line', 'line-color', '#1a2333');
-            }
-            // Bathymetry
-            if (map.getLayer('bathymetry styling')) {
-                map.setLayoutProperty('bathymetry styling', 'visibility', 'none');
-            }
-            // Terrain hillshade — darken
-            if (map.getLayer('terrain')) {
-                map.setPaintProperty('terrain', 'hillshade-shadow-color', '#0a0f18');
-                map.setPaintProperty('terrain', 'hillshade-accent-color', '#2a3548');
-            }
-            // Parks
-            if (map.getLayer('parks')) {
-                map.setPaintProperty('parks', 'fill-color', '#1e2d1e');
-                map.setPaintProperty('parks', 'fill-opacity', 0.3);
-            }
-            // Roads — make subtle
-            ['major roads', 'major roads casing', 'minor roads', 'all other roads'].forEach(id => {
-                if (map.getLayer(id)) {
-                    map.setPaintProperty(id, 'line-color', '#2a3548');
-                }
-            });
-            ['paths', 'path-bg', 'rails', 'rails bg', 'ferries'].forEach(id => {
-                if (map.getLayer(id)) {
-                    map.setPaintProperty(id, 'line-color', '#232f40');
-                }
-            });
-            // Admin/country borders
-            if (map.getLayer('country admin bg')) {
-                map.setPaintProperty('country admin bg', 'line-color', '#3a4a5a');
-            }
-            if (map.getLayer('state lines')) {
-                map.setPaintProperty('state lines', 'line-color', '#2a3a4a');
-            }
-            if (map.getLayer('maritime admin')) {
-                map.setPaintProperty('maritime admin', 'line-color', '#1a2838');
-            }
-            if (map.getLayer('maritime  admin shadow')) {
-                map.setPaintProperty('maritime  admin shadow', 'line-color', '#1a2838');
-            }
-            // Graticules
-            if (map.getLayer('ne-10m-graticules-5')) {
-                map.setPaintProperty('ne-10m-graticules-5', 'line-color', '#1e2a3a');
-            }
-            // Contours
-            if (map.getLayer('contour')) {
-                map.setPaintProperty('contour', 'line-color', '#2a3548');
-            }
-            if (map.getLayer('contour labels')) {
-                map.setPaintProperty('contour labels', 'text-color', '#4a5a6a');
-                map.setPaintProperty('contour labels', 'text-halo-color', '#1a2333');
-            }
-            // Aeroway
-            if (map.getLayer('aeroway')) {
-                map.setPaintProperty('aeroway', 'line-color', '#2a3548');
-            }
-            // Water labels
-            ['water label', 'waterway label'].forEach(id => {
-                if (map.getLayer(id)) {
-                    map.setPaintProperty(id, 'text-color', '#4a6a8a');
-                    map.setPaintProperty(id, 'text-halo-color', '#0d1520');
-                }
-            });
-            // Marine labels
-            ['marine label', 'marine label med'].forEach(id => {
-                if (map.getLayer(id)) {
-                    map.setPaintProperty(id, 'text-color', '#2a4a6a');
-                    map.setPaintProperty(id, 'text-halo-color', '#0d1520');
-                }
-            });
-            // All other text labels — make them light on dark
-            map.getStyle().layers.forEach(layer => {
-                if (layer.type === 'symbol' && !layer.id.match(/wine|region|top-|middle-|subregion|label/i)) {
-                    try {
-                        if (layer.paint && layer.paint['text-color']) {
-                            map.setPaintProperty(layer.id, 'text-color', '#8a9aaa');
-                            map.setPaintProperty(layer.id, 'text-halo-color', '#1a2333');
-                        }
-                    } catch(e) {}
-                }
-            });
-            // Satellite layer — keep as-is but darken
-            if (map.getLayer('mapbox-satellite')) {
-                map.setPaintProperty('mapbox-satellite', 'raster-brightness-max', 0.5);
-                map.setPaintProperty('mapbox-satellite', 'raster-brightness-min', 0.05);
-            }
-        } catch(e) {
-            console.warn('Dark mode override error:', e);
-        }
-
-        // Store original fill colors AFTER dark mode overrides so we can restore them
-        storeOriginalColors();
+        } catch(e) {}
 
         loadLabelData();
 
         // Click on wine region polygons for info
-        const fillLayers = ['top-fill', 'top4326', 'middle-fill', 'middle-fill-highlight', 'subregion-fill'];
-        fillLayers.forEach(layer => {
-            if (map.getLayer(layer)) {
-                map.on('click', layer, (e) => {
-                    if (e.features && e.features.length > 0) {
-                        showRegionInfo(e.features[0].properties, e.lngLat);
-                        e.originalEvent.stopPropagation();
-                    }
-                });
-                map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
-                map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
-            }
+        const CLICK_LAYERS = ['wine-region-fill'];
+        CLICK_LAYERS.forEach(layer => {
+            map.on('click', layer, (e) => {
+                if (e.features && e.features.length > 0) {
+                    showRegionInfo(e.features[0].properties, e.lngLat);
+                    e.originalEvent.stopPropagation();
+                }
+            });
+            map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
+            map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
         });
 
         // Click on empty area closes panel
         map.on('click', (e) => {
-            // Check if click hit any wine region
-            const features = map.queryRenderedFeatures(e.point, { layers: fillLayers.filter(l => map.getLayer(l)) });
+            const features = map.queryRenderedFeatures(e.point, { layers: CLICK_LAYERS });
             if (features.length === 0) closeInfo();
         });
     });
@@ -464,57 +418,14 @@
     }
 
     // ─── Polygon fill recoloring (GDD, Rain, Climate modes) ───────────
-    // Store original fill-color paints so we can restore on "Regions" mode
-    const originalFillColors = {};
-    const FILL_LAYERS = ['top4326', 'top-fill', 'middle-fill', 'middle-fill-highlight', 'middle-fill-fade', 'subregion-fill'];
-    // Map source-layers to label tiers for Name_rgn matching
-    const SOURCE_LAYER_TIER = {
-        'top4326': 'top',
-        'mstr_middle-3ysqay': 'mid',
-        'subrgns4326': 'sub',
-    };
-
-    function storeOriginalColors() {
-        // Store colors for all wine region fill layers in the style
-        const allLayers = map.getStyle().layers.filter(l => l.type === 'fill');
-        const wineRegionFills = allLayers.filter(l => {
-            const sl = l['source-layer'] || '';
-            return sl.includes('top') || sl.includes('middle') || sl.includes('mstr_middle') || sl.includes('subrgn');
-        });
-        wineRegionFills.forEach(layer => {
-            try {
-                originalFillColors[layer.id] = {
-                    color: map.getPaintProperty(layer.id, 'fill-color'),
-                    opacity: map.getPaintProperty(layer.id, 'fill-opacity'),
-                    visibility: map.getLayoutProperty(layer.id, 'visibility') || 'visible',
-                };
-            } catch(e) {}
-        });
-        // Also explicitly store the named layers
-        FILL_LAYERS.forEach(layerId => {
-            if (map.getLayer(layerId) && !originalFillColors[layerId]) {
-                try {
-                    originalFillColors[layerId] = {
-                        color: map.getPaintProperty(layerId, 'fill-color'),
-                        opacity: map.getPaintProperty(layerId, 'fill-opacity'),
-                        visibility: map.getLayoutProperty(layerId, 'visibility') || 'visible',
-                    };
-                } catch(e) {}
-            }
-        });
-        console.log('Stored original colors for', Object.keys(originalFillColors).length, 'layers:', Object.keys(originalFillColors));
-    }
-
     function buildColorMatchExpr(mode) {
-        // Build a Mapbox GL 'match' expression: ['match', ['get', 'Name_rgn'], name1, color1, ...]
-        // IMPORTANT: match requires UNIQUE keys — deduplicate by Name_rgn (first occurrence wins)
         const seen = new Set();
         const expr = ['match', ['get', 'Name_rgn']];
 
         allLabels.forEach(f => {
             const p = f.properties;
             const name = p.Name_rgn;
-            if (!name || seen.has(name)) return;  // Skip duplicates!
+            if (!name || seen.has(name)) return;
             seen.add(name);
 
             let color = null;
@@ -533,79 +444,32 @@
                 if (p.climate) color = climateToColor(p.climate);
             }
 
-            if (color) {
-                expr.push(name, color);
-            }
+            if (color) expr.push(name, color);
         });
 
         expr.push('rgba(80,80,80,0.3)');
-        console.log(`Built ${mode} match expression with ${seen.size} unique regions, ${(expr.length - 3) / 2} color mappings`);
         return expr;
     }
 
     function applyDataMode(mode) {
-        if (!allLabels.length) {
-            console.warn('No label data loaded yet — cannot apply data mode');
-            return;
-        }
-
+        if (!allLabels.length) return;
         const colorExpr = buildColorMatchExpr(mode);
-        console.log(`Applying ${mode} mode to ${FILL_LAYERS.length} layers with ${(colorExpr.length - 3) / 2} region mappings`);
-
-        // Also get all fill layers in the style to catch any we might have missed
-        const allLayers = map.getStyle().layers.filter(l => l.type === 'fill');
-        const wineRegionFills = allLayers.filter(l => {
-            const sl = l['source-layer'] || '';
-            return sl.includes('top') || sl.includes('middle') || sl.includes('mstr_middle') || sl.includes('subrgn');
-        });
-        console.log('Wine region fill layers found:', wineRegionFills.map(l => l.id));
-
-        // Apply to all wine region fill layers
-        wineRegionFills.forEach(layer => {
-            try {
-                map.setLayoutProperty(layer.id, 'visibility', 'visible');
-                map.setPaintProperty(layer.id, 'fill-color', colorExpr);
-                map.setPaintProperty(layer.id, 'fill-opacity', [
-                    'interpolate', ['linear'], ['zoom'],
-                    0, 0.75,
-                    5, 0.8,
-                    8, 0.65,
-                    12, 0.5
-                ]);
-            } catch(e) {
-                console.warn('Failed to apply data mode to layer', layer.id, e);
-            }
-        });
-
-        // Also apply to the explicitly listed layers (belt + suspenders)
-        FILL_LAYERS.forEach(layerId => {
-            if (!map.getLayer(layerId)) return;
-            try {
-                map.setLayoutProperty(layerId, 'visibility', 'visible');
-                map.setPaintProperty(layerId, 'fill-color', colorExpr);
-                map.setPaintProperty(layerId, 'fill-opacity', [
-                    'interpolate', ['linear'], ['zoom'],
-                    0, 0.75,
-                    5, 0.8,
-                    8, 0.65,
-                    12, 0.5
-                ]);
-            } catch(e) {}
-        });
+        map.setPaintProperty('wine-region-fill', 'fill-color', colorExpr);
+        map.setPaintProperty('wine-region-fill', 'fill-opacity', [
+            'interpolate', ['linear'], ['zoom'],
+            0, 0.75, 5, 0.8, 8, 0.65, 12, 0.5
+        ]);
+        map.setPaintProperty('wine-region-line', 'line-color', colorExpr);
     }
 
     function restoreDefaultColors() {
-        Object.keys(originalFillColors).forEach(layerId => {
-            if (!map.getLayer(layerId)) return;
-            const orig = originalFillColors[layerId];
-            if (orig) {
-                try {
-                    map.setPaintProperty(layerId, 'fill-color', orig.color);
-                    map.setPaintProperty(layerId, 'fill-opacity', orig.opacity);
-                    if (orig.visibility) map.setLayoutProperty(layerId, 'visibility', orig.visibility);
-                } catch(e) {}
-            }
-        });
+        map.setPaintProperty('wine-region-fill', 'fill-color', DEFAULT_FILL_COLOR);
+        map.setPaintProperty('wine-region-fill', 'fill-opacity', DEFAULT_FILL_OPACITY);
+        map.setPaintProperty('wine-region-line', 'line-color', [
+            'interpolate', ['linear'], ['get', 'color'],
+            0, '#66c2a5', 1, '#fc8d62', 2, '#8da0cb',
+            3, '#e78ac3', 4, '#a6d854', 5, '#ffd92f'
+        ]);
     }
 
     // ─── View Modes ─────────────────────────────────────────────────────
@@ -613,7 +477,6 @@
         currentMode = mode;
         document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
 
-        // Hide all legends
         document.getElementById('gdd-legend').classList.remove('visible');
         document.getElementById('rain-legend').classList.remove('visible');
         document.getElementById('climate-legend').classList.remove('visible');
@@ -663,7 +526,6 @@
         }).join('');
         resultsDiv.classList.add('active');
 
-        // Store matches for click handling
         resultsDiv._matches = matches;
     }
 
@@ -693,7 +555,6 @@
         const countryFeatures = allLabels.filter(f => f.properties.country === country);
         if (countryFeatures.length === 0) return;
 
-        // Fit to bounds of all features in country
         const bounds = new mapboxgl.LngLatBounds();
         countryFeatures.forEach(f => {
             if (f.properties._bbox) {
@@ -712,7 +573,6 @@
         document.getElementById('info-name').textContent = props.Name_rgn || props.name || 'Unknown';
         document.getElementById('info-class').textContent = props.class || '';
 
-        // Try to find matching label for full metadata
         let labelProps = props;
         if (props.Name_rgn) {
             const match = allLabels.find(f => f.properties.Name_rgn === props.Name_rgn);
@@ -741,7 +601,6 @@
         document.getElementById('info-panel').classList.remove('active');
     }
 
-    // Close search on click outside
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.filter-group')) {
             document.getElementById('search-results').classList.remove('active');

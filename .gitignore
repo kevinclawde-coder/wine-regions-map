@@ -1,0 +1,19 @@
+# Large data files (stored locally, not needed for GitHub Pages)
+polygons_*.json
+middle_regions_*.json
+top_regions_*.json
+polygons_ld.json
+polygons_dissolved.json
+polygons_fixed.json
+polygons_old_z57.json
+koppen_climate.geojson
+nz_wine_regions.geojson
+
+# Build/extraction scripts and logs
+extract_*.js
+extract_*.py
+extract_*.html
+extract_*.log
+dissolve_*.py
+dissolve_*.log
+merge_*.py
