@@ -111,6 +111,18 @@
             background: rgba(255,215,0,0.15); color: #ffd700;
             border: 1px solid rgba(255,215,0,0.4); margin-left: 8px;
         }
+        .sub-region-list { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+        .sub-region-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 12px; border-radius: 10px;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(200,143,127,0.2);
+            cursor: pointer; transition: all 0.2s;
+        }
+        .sub-region-item:hover { background: rgba(255,215,0,0.1); border-color: rgba(255,215,0,0.4); }
+        .sub-region-item .sr-name { font-size: 13px; font-weight: 600; color: #ffd700; }
+        .sub-region-item .sr-tag { font-size: 11px; color: #c48f7f; }
+        .sub-region-item .sr-arrow { color: #ffd700; font-size: 16px; }
+        .sub-region-header { font-size: 12px; color: #c48f7f; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 12px; margin-bottom: 4px; }
 
         .loading {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -241,9 +253,30 @@
         'canterbury', 'auckland', 'northland', 'gisborne'
     ];
 
+    // Parent regions that contain multiple live sub-regions
+    const PARENT_REGIONS = {
+        'central otago': {
+            label: 'Central Otago Wine Regions',
+            subregions: [
+                { slug: 'gibbston', name: 'Gibbston Valley', tag: 'The Valley of the Vines' },
+                { slug: 'cromwell', name: 'Cromwell Basin', tag: 'Sun-drenched terraces' },
+                { slug: 'bannockburn', name: 'Bannockburn', tag: 'The desert heart' },
+                { slug: 'bendigo', name: 'Bendigo', tag: 'Gold country, wine country' },
+                { slug: 'alexandra', name: 'Alexandra', tag: 'The southern frontier' },
+                { slug: 'wanaka', name: 'Wanaka', tag: 'Alpine wines, lakeside charm' },
+            ]
+        }
+    };
+
+    function getParentRegion(name) {
+        if (!name) return null;
+        return PARENT_REGIONS[name.toLowerCase()] || null;
+    }
+
     function isLiveRegion(name) {
         if (!name) return false;
         const n = name.toLowerCase();
+        if (PARENT_REGIONS[n]) return true;
         return LIVE_REGIONS.some(slug => n.includes(slug) || slug.includes(n));
     }
 
@@ -712,21 +745,37 @@
         if (labelProps.style) detail += `<strong>Varieties:</strong> ${labelProps.style}<br>`;
         if (labelProps.latitude) detail += `<strong>Latitude:</strong> ${Math.abs(labelProps.latitude).toFixed(2)}° ${labelProps.latitude >= 0 ? 'N' : 'S'}<br>`;
 
-        // CTA buttons
-        detail += '<div class="cta-buttons">';
-        if (live) {
-            detail += `<button class="cta-btn primary" onclick="navigateToRegion('${slug}')">
-                🍇 Explore Wine Tours
-            </button>`;
-            detail += `<button class="cta-btn secondary" onclick="generateTour('${slug}')">
-                ✨ Generate Custom Tour
-            </button>`;
+        // CTA buttons — check if parent region with sub-regions
+        const parent = getParentRegion(name);
+        if (parent) {
+            detail += `<div class="sub-region-header">${parent.label}</div>`;
+            detail += '<div class="sub-region-list">';
+            parent.subregions.forEach(sr => {
+                detail += `<div class="sub-region-item" onclick="navigateToRegion('${sr.slug}')">
+                    <div>
+                        <div class="sr-name">🍇 ${sr.name}</div>
+                        <div class="sr-tag">${sr.tag}</div>
+                    </div>
+                    <span class="sr-arrow">›</span>
+                </div>`;
+            });
+            detail += '</div>';
         } else {
-            detail += `<button class="cta-btn coming-soon">
-                🔜 Coming Soon
-            </button>`;
+            detail += '<div class="cta-buttons">';
+            if (live) {
+                detail += `<button class="cta-btn primary" onclick="navigateToRegion('${slug}')">
+                    🍇 Explore Wine Tours
+                </button>`;
+                detail += `<button class="cta-btn secondary" onclick="generateTour('${slug}')">
+                    ✨ Generate Custom Tour
+                </button>`;
+            } else {
+                detail += `<button class="cta-btn coming-soon">
+                    🔜 Coming Soon
+                </button>`;
+            }
+            detail += '</div>';
         }
-        detail += '</div>';
 
         document.getElementById('info-detail').innerHTML = detail || 'Zoom in for more detail.';
         panel.classList.add('active');
