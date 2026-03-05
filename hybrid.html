@@ -295,6 +295,27 @@
     map.on('load', () => {
         document.getElementById('loading').style.display = 'none';
 
+        // ─── Dark navy theme overrides (dark-v11 is too black) ───────────
+        try {
+            map.setPaintProperty('background', 'background-color', '#1a2333');
+            map.setPaintProperty('water', 'fill-color', '#0d1a2e');
+            // Land areas
+            map.getStyle().layers.forEach(layer => {
+                if (layer.id === 'land' || layer.id === 'landcover') {
+                    map.setPaintProperty(layer.id, 'fill-color', '#1a2333');
+                }
+                if (layer.id === 'landuse') {
+                    map.setPaintProperty(layer.id, 'fill-color', '#1e2a3a');
+                }
+            });
+            // Subtle admin borders
+            ['admin-0-boundary', 'admin-0-boundary-bg', 'admin-1-boundary'].forEach(id => {
+                if (map.getLayer(id)) {
+                    map.setPaintProperty(id, 'line-color', '#2a3a4a');
+                }
+            });
+        } catch(e) { console.warn('Theme override error:', e); }
+
         // ─── Add wine region vector tile sources ────────────────────────
         Object.entries(WINE_TILE_SOURCES).forEach(([name, url]) => {
             map.addSource(name, { type: 'vector', url: url });
