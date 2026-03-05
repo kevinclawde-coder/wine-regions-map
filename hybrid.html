@@ -470,6 +470,20 @@
 
     // ─── Initialize ─────────────────────────────────────────────────────
 
+        // Called by Google Maps script callback
+    function initGmap() {
+        initGoogleMap();
+        // Sync immediately if Mapbox already loaded
+        if (mbmap) syncGmapFromMapbox();
+    }
+
+    // Called immediately on page load (no Google dependency)
+    function initMapbox() {
+        initMapboxOverlay();
+        loadLabelData();
+    }
+
+    // Legacy callback (in case referenced)
     function initApp() {
         initGoogleMap();
         initMapboxOverlay();
@@ -561,13 +575,15 @@
     // ─── Viewport Sync ─────────────────────────────────────────────────
 
     function syncGmapFromMapbox() {
-        if (!gmap || !mbmap) return;
+        if (!mbmap) return;
         syncing = true;
         const center = mbmap.getCenter();
         const zoom = mbmap.getZoom();
         // Google Maps zoom ≈ Mapbox zoom + 1 at equivalent views
-        gmap.setCenter({ lat: center.lat, lng: center.lng });
-        gmap.setZoom(Math.round(zoom + 1));
+        if (gmap) {
+            gmap.setCenter({ lat: center.lat, lng: center.lng });
+            gmap.setZoom(Math.round(zoom + 1));
+        }
         syncing = false;
     }
 
@@ -889,18 +905,24 @@
     if (!apiKey && window.location.hash.includes('key=')) {
         apiKey = window.location.hash.split('key=')[1];
     }
+    // Strip any trailing junk (e.g. ** from WhatsApp bold formatting)
+    if (apiKey) apiKey = apiKey.replace(/[^A-Za-z0-9_\-]/g, '');
+
+    // Always init Mapbox first (doesn't need Google Maps)
+    initMapbox();
 
     if (!apiKey) {
-        document.getElementById('loading').innerHTML = `
-            <div style="color:#c48f7f;font-size:18px;text-align:center;padding:20px;">
-                Add your Google Maps API key:<br>
-                <code style="color:#ffd700;margin-top:8px;display:block;">?key=YOUR_API_KEY</code>
-            </div>`;
+        // No key — Mapbox-only mode, skip Google Maps
+        document.getElementById('loading').style.display = 'none';
     } else {
         const s = document.createElement('script');
-        s.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initApp`;
+        s.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initGmap`;
         s.async = true;
         s.defer = true;
+        s.onerror = function() {
+            console.warn('Google Maps failed to load — running Mapbox-only');
+            document.getElementById('loading').style.display = 'none';
+        };
         document.head.appendChild(s);
     }
     </script>
