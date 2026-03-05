@@ -271,18 +271,36 @@
     // ─── Init Map ───────────────────────────────────────────────────────
     mapboxgl.accessToken = MAPBOX_TOKEN;
 
-    map = new mapboxgl.Map({
-        container: 'map',
-        style: MARTIN_STYLE,
-        center: [10, 30],
-        zoom: 2,
-        attributionControl: false,
-    });
+    // Fetch Martin's style, override glyphs URL for Josefin Sans, then init map
+    async function initMap() {
+        let style = MARTIN_STYLE;
+        try {
+            const styleUrl = `https://api.mapbox.com/styles/v1/martinvonwyss/ckmlvgu8djvdi17tfcr5o8moc/draft?access_token=${MAPBOX_TOKEN}`;
+            const res = await fetch(styleUrl);
+            style = await res.json();
+            // Override glyphs to serve our custom fonts + fallback to Mapbox defaults
+            const baseUrl = window.location.href.replace(/\/[^/]*$/, '');
+            style.glyphs = baseUrl + '/glyphs/{fontstack}/{range}.pbf';
+        } catch(e) {
+            console.warn('Failed to fetch style JSON, using style URL directly:', e);
+        }
 
-    map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'bottom-right');
-    map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-right');
+        map = new mapboxgl.Map({
+            container: 'map',
+            style: style,
+            center: [10, 30],
+            zoom: 2,
+            attributionControl: false,
+        });
 
-    map.on('load', () => {
+        setupMapEvents();
+    }
+
+    function setupMapEvents() {
+
+        map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'bottom-right');
+
+        map.on('load', () => {
         document.getElementById('loading').style.display = 'none';
 
         // ─── Dark Mode Overrides ────────────────────────────────────────
@@ -391,6 +409,28 @@
             console.warn('Dark mode override error:', e);
         }
 
+        // Override ALL text layers to use Josefin Sans
+        try {
+            map.getStyle().layers.forEach(layer => {
+                if (layer.type === 'symbol') {
+                    try {
+                        const currentFont = map.getLayoutProperty(layer.id, 'text-font');
+                        if (currentFont) {
+                            // Check if it's a bold/italic variant
+                            const fontStr = JSON.stringify(currentFont).toLowerCase();
+                            if (fontStr.includes('bold')) {
+                                map.setLayoutProperty(layer.id, 'text-font', ['Josefin Sans Bold', 'Arial Unicode MS Regular']);
+                            } else {
+                                map.setLayoutProperty(layer.id, 'text-font', ['Josefin Sans Regular', 'Arial Unicode MS Regular']);
+                            }
+                        }
+                    } catch(e) {}
+                }
+            });
+        } catch(e) {
+            console.warn('Font override error:', e);
+        }
+
         // Store original fill colors AFTER dark mode overrides so we can restore them
         storeOriginalColors();
 
@@ -418,6 +458,10 @@
             if (features.length === 0) closeInfo();
         });
     });
+    } // end setupMapEvents
+
+    // Start the map
+    initMap();
 
     // ─── Load Label Data ────────────────────────────────────────────────
     async function loadLabelData() {
