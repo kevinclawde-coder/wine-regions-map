@@ -749,27 +749,52 @@
         // CTA buttons — check if parent region with sub-regions
         const parent = getParentRegion(name);
         if (parent) {
-            detail += `<div class="sub-region-header">${parent.label}</div>`;
-            detail += '<div class="sub-region-list">';
-            parent.subregions.forEach(sr => {
-                detail += `<div class="sub-region-item" onclick="navigateToRegion('${sr.slug}')">
-                    <div>
-                        <div class="sr-name">🍇 ${sr.name}</div>
-                        <div class="sr-tag">${sr.tag}</div>
-                    </div>
-                    <span class="sr-arrow">›</span>
-                </div>`;
-            });
-            detail += '</div>';
+            if (isFlutterWebView) {
+                // Mobile: show sub-regions each with single "Create My WineTrail" action
+                detail += `<div class="sub-region-header">${parent.label}</div>`;
+                detail += '<div class="sub-region-list">';
+                parent.subregions.forEach(sr => {
+                    detail += `<div class="sub-region-item" onclick="navigateToRegion('${sr.slug}')">
+                        <div>
+                            <div class="sr-name">🍇 ${sr.name}</div>
+                            <div class="sr-tag">${sr.tag}</div>
+                        </div>
+                        <span class="sr-arrow">›</span>
+                    </div>`;
+                });
+                detail += '</div>';
+            } else {
+                // Web: show sub-regions with links
+                detail += `<div class="sub-region-header">${parent.label}</div>`;
+                detail += '<div class="sub-region-list">';
+                parent.subregions.forEach(sr => {
+                    detail += `<div class="sub-region-item" onclick="navigateToRegion('${sr.slug}')">
+                        <div>
+                            <div class="sr-name">🍇 ${sr.name}</div>
+                            <div class="sr-tag">${sr.tag}</div>
+                        </div>
+                        <span class="sr-arrow">›</span>
+                    </div>`;
+                });
+                detail += '</div>';
+            }
         } else {
             detail += '<div class="cta-buttons">';
             if (live) {
-                detail += `<button class="cta-btn primary" onclick="navigateToRegion('${slug}')">
-                    🍇 Explore Wine Tours
-                </button>`;
-                detail += `<button class="cta-btn secondary" onclick="generateTour('${slug}')">
-                    ✨ Generate Custom Tour
-                </button>`;
+                if (isFlutterWebView) {
+                    // Mobile: single CTA → Plan page with region pre-selected
+                    detail += `<button class="cta-btn primary" onclick="navigateToRegion('${slug}')">
+                        🍇 Create My WineTrail
+                    </button>`;
+                } else {
+                    // Web: two CTAs
+                    detail += `<button class="cta-btn primary" onclick="navigateToRegion('${slug}')">
+                        🍇 Explore Wine Tours
+                    </button>`;
+                    detail += `<button class="cta-btn secondary" onclick="generateTour('${slug}')">
+                        ✨ Generate Custom Tour
+                    </button>`;
+                }
             } else {
                 detail += `<button class="cta-btn coming-soon">
                     🔜 Coming Soon
@@ -782,18 +807,33 @@
         panel.classList.add('active');
     }
 
+    // Detect if running inside Flutter WebView (adds WineTrailsApp JS channel)
+    const isFlutterWebView = typeof WineTrailsApp !== 'undefined';
+    // Detect if inside an iframe (Base44 web app)
+    const isIframe = window !== window.parent;
+
     function navigateToRegion(slug) {
-        // Communicate with parent app (Base44 iframe or Flutter WebView)
-        window.parent.postMessage({ type: 'winetrails-navigate', slug: slug }, '*');
-        // Also try opening directly if not in iframe
-        if (window === window.parent) {
-            window.open('https://winetrails.io/SelfGuidedDetail?slug=' + encodeURIComponent(slug), '_blank');
+        if (isFlutterWebView) {
+            // Flutter: single CTA goes to Plan page with region pre-selected
+            WineTrailsApp.postMessage(JSON.stringify({ type: 'select-region', slug: slug }));
+        } else if (isIframe) {
+            // Web iframe: Explore Tours → Experiences page
+            window.parent.postMessage({ type: 'winetrails-navigate', slug: slug, page: 'experiences' }, '*');
+        } else {
+            // Standalone: open Experiences page
+            window.open('https://winetrails.io/Experiences', '_blank');
         }
     }
 
     function generateTour(slug) {
-        window.parent.postMessage({ type: 'winetrails-generate-tour', slug: slug }, '*');
-        if (window === window.parent) {
+        if (isFlutterWebView) {
+            // Flutter: same as navigateToRegion — single CTA
+            WineTrailsApp.postMessage(JSON.stringify({ type: 'select-region', slug: slug }));
+        } else if (isIframe) {
+            // Web iframe: Generate Tour → region detail page
+            window.parent.postMessage({ type: 'winetrails-generate-tour', slug: slug }, '*');
+        } else {
+            // Standalone
             window.open('https://winetrails.io/SelfGuidedDetail?slug=' + encodeURIComponent(slug) + '&generate=true', '_blank');
         }
     }
