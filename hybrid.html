@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WineTrails — World Wine Regions (Hybrid)</title>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a2333; color: #eae9e5; }
+
+        /* Google Maps = base layer */
+        #gmap {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 1;
+        }
+        /* Mapbox GL = transparent overlay on top */
+        #mbmap {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 2;
+        }
+        /* Mapbox canvas must be transparent */
+        #mbmap .mapboxgl-canvas { background: transparent !important; }
+        /* Hide Mapbox attribution/logo (Google's shows underneath) */
+        .mapboxgl-ctrl-bottom-left, .mapboxgl-ctrl-bottom-right { display: none !important; }
+
+        /* Hide Google branding */
+        .gm-style-cc, a[href*="maps.google.com"], a[href*="google.com/maps"],
+        .gm-style > div:last-child > div { display: none !important; }
+
+        .controls {
+            position: absolute; top: 16px; right: 16px; z-index: 10;
+            background: rgba(26, 35, 51, 0.95); border-radius: 12px; padding: 16px;
+            min-width: 260px; backdrop-filter: blur(10px);
+            border: 1px solid rgba(200, 143, 127, 0.3);
+            box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+            max-height: calc(100vh - 32px); overflow-y: auto;
+        }
+        .controls h1 { font-size: 18px; color: #ffd700; margin-bottom: 4px; }
+        .controls .subtitle { font-size: 12px; color: #c48f7f; margin-bottom: 12px; }
+        .controls .stats { font-size: 13px; margin-bottom: 12px; line-height: 1.6; }
+        .controls .stats span { color: #ffd700; font-weight: 600; }
+
+        .filter-group { margin-bottom: 10px; }
+        .filter-group label {
+            display: block; font-size: 11px; text-transform: uppercase;
+            letter-spacing: 0.5px; color: #c48f7f; margin-bottom: 4px;
+        }
+        .filter-group select, .filter-group input {
+            width: 100%; padding: 8px 10px; border-radius: 8px;
+            border: 1px solid rgba(200, 143, 127, 0.3);
+            background: rgba(255,255,255,0.08); color: #eae9e5; font-size: 13px; outline: none;
+        }
+        .filter-group select:focus, .filter-group input:focus { border-color: #c48f7f; }
+        .filter-group select option { background: #1a2333; color: #eae9e5; }
+
+        .search-results {
+            max-height: 200px; overflow-y: auto; margin-top: 4px;
+            border-radius: 8px; background: rgba(26, 35, 51, 0.98);
+            border: 1px solid rgba(200, 143, 127, 0.3); display: none;
+        }
+        .search-results.active { display: block; }
+        .search-result {
+            padding: 8px 10px; font-size: 13px; cursor: pointer;
+            border-bottom: 1px solid rgba(200, 143, 127, 0.1);
+            transition: background 0.15s;
+        }
+        .search-result:hover { background: rgba(200, 143, 127, 0.15); }
+        .search-result .region-name { color: #eae9e5; }
+        .search-result .region-meta { color: #8a7b6b; font-size: 11px; margin-top: 2px; }
+
+        .level-toggles { margin-bottom: 12px; }
+        .level-toggles label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #c48f7f; margin-bottom: 6px; }
+        .level-btns { display: flex; gap: 4px; flex-wrap: wrap; }
+        .level-btn {
+            padding: 6px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;
+            border: 1px solid rgba(200, 143, 127, 0.3); background: rgba(255,255,255,0.05);
+            color: #eae9e5; transition: all 0.2s;
+        }
+        .level-btn:hover { background: rgba(200, 143, 127, 0.15); }
+        .level-btn.active { background: rgba(200, 143, 127, 0.3); border-color: #c48f7f; color: #ffd700; }
+
+        .info-panel {
+            position: absolute; bottom: 24px; right: 16px; z-index: 10;
+            background: rgba(26, 35, 51, 0.95); border-radius: 12px; padding: 16px 20px;
+            min-width: 300px; max-width: 380px; backdrop-filter: blur(10px);
+            border: 1px solid rgba(200, 143, 127, 0.3);
+            box-shadow: 0 4px 24px rgba(0,0,0,0.4); display: none;
+        }
+        .info-panel.active { display: block; }
+        .info-panel h2 { font-size: 16px; color: #ffd700; margin-bottom: 4px; }
+        .info-panel .classification { font-size: 12px; color: #c48f7f; margin-bottom: 8px; font-style: italic; }
+        .info-panel .detail { font-size: 13px; line-height: 1.6; }
+        .info-panel .detail strong { color: #c48f7f; }
+        .info-panel .close-btn {
+            position: absolute; top: 8px; right: 12px; cursor: pointer;
+            color: #eae9e5; font-size: 18px; opacity: 0.6;
+        }
+        .info-panel .close-btn:hover { opacity: 1; }
+
+        .loading {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 20; color: #ffd700; font-size: 16px; text-align: center; width: 90%; max-width: 300px;
+        }
+        .loading .spinner {
+            width: 40px; height: 40px; border: 3px solid rgba(200,143,127,0.3);
+            border-top-color: #ffd700; border-radius: 50%;
+            animation: spin 1s linear infinite; margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .toggle-controls {
+            display: none; position: absolute; top: 16px; right: 16px; z-index: 11;
+            background: rgba(26, 35, 51, 0.95); border: 1px solid rgba(200, 143, 127, 0.3);
+            border-radius: 8px; padding: 8px 12px; color: #ffd700; font-size: 14px; cursor: pointer;
+        }
+        @media (max-width: 600px) {
+            .controls { display: none; }
+            .controls.open { display: block; top: 50px; left: 8px; right: 8px; min-width: unset; }
+            .toggle-controls { display: block; }
+            .info-panel { bottom: 8px; right: 8px; left: 8px; min-width: unset; max-width: unset; }
+        }
+
+        .zoom-hint {
+            position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+            z-index: 10; background: rgba(26, 35, 51, 0.9); padding: 8px 16px;
+            border-radius: 20px; font-size: 12px; color: #c48f7f;
+            border: 1px solid rgba(200, 143, 127, 0.2);
+            pointer-events: none; opacity: 0; transition: opacity 0.3s;
+        }
+        .zoom-hint.visible { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div id="gmap"></div>
+    <div id="mbmap"></div>
+
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        Initializing maps...
+    </div>
+
+    <button class="toggle-controls" onclick="document.querySelector('.controls').classList.toggle('open')">🍇 Filters</button>
+
+    <div class="controls">
+        <h1>🍇 WineTrails</h1>
+        <div class="subtitle">World Wine Regions Explorer · Hybrid</div>
+        <div class="stats">
+            Zoom: <span id="zoom-level">3</span> · Mapbox vector tiles
+            <div style="font-size:11px;color:#8a7b6b;margin-top:2px;">Zoom in for sub-regions</div>
+        </div>
+
+        <div class="level-toggles">
+            <label>Region Layers</label>
+            <div class="level-btns">
+                <div class="level-btn active" data-level="top" onclick="toggleLevel('top', this)">🌍 Top</div>
+                <div class="level-btn active" data-level="middle" onclick="toggleLevel('middle', this)">📍 Middle</div>
+                <div class="level-btn active" data-level="subregion" onclick="toggleLevel('subregion', this)">🔎 Sub</div>
+                <div class="level-btn active" data-level="labels" onclick="toggleLevel('labels', this)">🏷️ Labels</div>
+            </div>
+        </div>
+
+        <div class="filter-group">
+            <label>Search Regions</label>
+            <input type="text" id="search" placeholder="e.g. Barossa, Burgundy, Napa..." oninput="onSearch(this.value)">
+            <div class="search-results" id="search-results"></div>
+        </div>
+
+        <div class="filter-group">
+            <label>Country</label>
+            <select id="country-filter" onchange="filterByCountry(this.value)">
+                <option value="">All Countries</option>
+            </select>
+        </div>
+
+        <div style="margin-top: 14px; border-top: 1px solid rgba(200,143,127,0.2); padding-top: 10px;">
+            <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #c48f7f; margin-bottom: 6px;">Layer Colors</div>
+            <div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:2px 0;">
+                <div style="width:10px;height:10px;border-radius:50%;background:rgba(200,143,127,0.5);flex-shrink:0;"></div> Top-level regions
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:2px 0;">
+                <div style="width:10px;height:10px;border-radius:50%;background:rgba(255,215,0,0.5);flex-shrink:0;"></div> Mid-level regions
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:2px 0;">
+                <div style="width:10px;height:10px;border-radius:50%;background:rgba(100,200,255,0.5);flex-shrink:0;"></div> Sub-regions
+            </div>
+        </div>
+    </div>
+
+    <div class="info-panel" id="info-panel">
+        <span class="close-btn" onclick="closeInfo()">✕</span>
+        <h2 id="info-name"></h2>
+        <div class="classification" id="info-class"></div>
+        <div class="detail" id="info-detail"></div>
+    </div>
+
+    <div class="zoom-hint" id="zoom-hint">Zoom in to see sub-regions</div>
+
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+    <script>
+    // ─── Configuration ──────────────────────────────────────────────────
+    const MAPBOX_TOKEN = 'pk.eyJ1IjoibWFydGludm9ud3lzcyIsImEiOiJ5UDZqNzlRIn0.C2v_MaFow7-hiueBnq2ELQ';
+    const LABEL_URLS = {
+        top: 'https://worldwineregions.com/wwrmap/top-labels.geojson',
+        mid: 'https://worldwineregions.com/wwrmap/mid-labels.geojson',
+        sub: 'https://worldwineregions.com/wwrmap/subregion-labels.geojson'
+    };
+
+    // Map polygon region names to WineTrails slugs for CTA buttons
+    const WINETRAILS_REGIONS = {
+        'Bannockburn': 'bannockburn', 'Central Otago': 'gibbston',
+        "Hawke's Bay": 'hawkes-bay', "Hawkes Bay": 'hawkes-bay',
+        'Marlborough': 'marlborough', 'Martinborough': 'martinborough',
+        'Nelson': 'nelson', 'Waiheke Island': 'waiheke-island',
+        'Waipara Valley': 'waipara', 'Waipara': 'waipara',
+        'Waitaki Valley': 'waitaki', 'Waitaki Valley North Otago': 'waitaki',
+        'Wairarapa': 'martinborough',
+    };
+    const WINETRAILS_BASE_URL = 'https://winetrails.io/SelfGuidedDetail';
+
+    let gmap, mbmap;
+    let syncing = false;
+    let labelData = { top: null, mid: null, sub: null };
+    let allLabels = [];
+    let layerVisibility = { top: true, middle: true, subregion: true, labels: true };
+
+    // Mapbox GL style with ONLY wine region layers, transparent background
+    const WINE_OVERLAY_STYLE = {
+        version: 8,
+        name: 'wine-regions-overlay',
+        sources: {
+            composite: {
+                type: 'vector',
+                url: 'mapbox://martinvonwyss.75poh169,martinvonwyss.3oqku56u,martinvonwyss.8bnug1jj',
+                // These are the three Martin tilesets: top4326, mstr_middle-3ysqay, subrgns4326
+            }
+        },
+        // We intentionally define NO background layer → canvas stays transparent
+        layers: [
+            // ═══════════════════════════════════════════
+            // TOP-LEVEL REGIONS (source-layer: top4326)
+            // ═══════════════════════════════════════════
+            {
+                id: 'top-fill',
+                type: 'fill',
+                source: 'composite',
+                'source-layer': 'top4326',
+                minzoom: 2,
+                maxzoom: 22,
+                paint: {
+                    'fill-color': [
+                        'match', ['get', 'color'],
+                        0, '#8B4513',
+                        1, '#A0522D',
+                        2, '#CD853F',
+                        3, '#DEB887',
+                        4, '#D2691E',
+                        5, '#B8860B',
+                        '#996633'
+                    ],
+                    'fill-opacity': [
+                        'interpolate', ['linear'], ['zoom'],
+                        2, 0.15,
+                        5, 0.2,
+                        8, 0.1,
+                        10, 0.05
+                    ]
+                }
+            },
+            {
+                id: 'top-line',
+                type: 'line',
+                source: 'composite',
+                'source-layer': 'top4326',
+                minzoom: 2,
+                paint: {
+                    'line-color': '#c48f7f',
+                    'line-opacity': [
+                        'interpolate', ['linear'], ['zoom'],
+                        2, 0.4,
+                        5, 0.6,
+                        8, 0.4,
+                        12, 0.2
+                    ],
+                    'line-width': [
+                        'interpolate', ['linear'], ['zoom'],
+                        2, 0.5,
+                        5, 1.2,
+                        8, 1.5,
+                        12, 0.8
+                    ]
+                }
+            },
+            {
+                id: 'top-line-bands',
+                type: 'line',
+                source: 'composite',
+                'source-layer': 'top4326',
+                minzoom: 3,
+                maxzoom: 9,
+                paint: {
+                    'line-color': [
+                        'match', ['get', 'color'],
+                        0, '#8B4513',
+                        1, '#A0522D',
+                        2, '#CD853F',
+                        3, '#DEB887',
+                        4, '#D2691E',
+                        5, '#B8860B',
+                        '#996633'
+                    ],
+                    'line-opacity': 0.5,
+                    'line-width': [
+                        'interpolate', ['linear'], ['zoom'],
+                        3, 2,
+                        6, 4,
+                        9, 2
+                    ],
+                    'line-offset': -2,
+                }
+            },
+
+            // ═══════════════════════════════════════════
+            // MID-LEVEL REGIONS (source-layer: mstr_middle-3ysqay)
+            // ═══════════════════════════════════════════
+            {
+                id: 'middle-fill',
+                type: 'fill',
+                source: 'composite',
+                'source-layer': 'mstr_middle-3ysqay',
+                minzoom: 5,
+                paint: {
+                    'fill-color': '#ffd700',
+                    'fill-opacity': [
+                        'interpolate', ['linear'], ['zoom'],
+                        5, 0.0,
+                        6, 0.08,
+                        8, 0.15,
+                        11, 0.1,
+                        14, 0.05
+                    ]
+                }
+            },
+            {
+                id: 'middle-line',
+                type: 'line',
+                source: 'composite',
+                'source-layer': 'mstr_middle-3ysqay',
+                minzoom: 5,
+                paint: {
+                    'line-color': '#ffd700',
+                    'line-opacity': [
+                        'interpolate', ['linear'], ['zoom'],
+                        5, 0.0,
+                        6, 0.3,
+                        8, 0.5,
+                        12, 0.4,
+                        15, 0.2
+                    ],
+                    'line-width': [
+                        'interpolate', ['linear'], ['zoom'],
+                        5, 0.3,
+                        8, 1,
+                        12, 1.5,
+                        15, 0.8
+                    ]
+                }
+            },
+            {
+                id: 'middle-line-bands',
+                type: 'line',
+                source: 'composite',
+                'source-layer': 'mstr_middle-3ysqay',
+                minzoom: 6,
+                maxzoom: 12,
+                paint: {
+                    'line-color': '#ffd700',
+                    'line-opacity': 0.3,
+                    'line-width': [
+                        'interpolate', ['linear'], ['zoom'],
+                        6, 2,
+                        9, 3,
+                        12, 2
+                    ],
+                    'line-offset': -2
+                }
+            },
+
+            // ═══════════════════════════════════════════
+            // SUB-REGIONS (source-layer: subrgns4326)
+            // ═══════════════════════════════════════════
+            {
+                id: 'subregion-fill',
+                type: 'fill',
+                source: 'composite',
+                'source-layer': 'subrgns4326',
+                minzoom: 8,
+                paint: {
+                    'fill-color': '#64c8ff',
+                    'fill-opacity': [
+                        'interpolate', ['linear'], ['zoom'],
+                        8, 0.0,
+                        9, 0.08,
+                        11, 0.15,
+                        14, 0.1
+                    ]
+                }
+            },
+            {
+                id: 'subregion-line',
+                type: 'line',
+                source: 'composite',
+                'source-layer': 'subrgns4326',
+                minzoom: 8,
+                paint: {
+                    'line-color': '#64c8ff',
+                    'line-opacity': [
+                        'interpolate', ['linear'], ['zoom'],
+                        8, 0.0,
+                        9, 0.4,
+                        11, 0.6,
+                        14, 0.4
+                    ],
+                    'line-width': [
+                        'interpolate', ['linear'], ['zoom'],
+                        8, 0.3,
+                        11, 1,
+                        14, 1.5
+                    ]
+                }
+            },
+            {
+                id: 'subregion-line-bands',
+                type: 'line',
+                source: 'composite',
+                'source-layer': 'subrgns4326',
+                minzoom: 9,
+                maxzoom: 15,
+                paint: {
+                    'line-color': '#64c8ff',
+                    'line-opacity': 0.25,
+                    'line-width': [
+                        'interpolate', ['linear'], ['zoom'],
+                        9, 1.5,
+                        12, 3,
+                        15, 1.5
+                    ],
+                    'line-offset': -2
+                }
+            },
+        ],
+        // Glyphs needed for any text labels we might add
+        glyphs: 'mapbox://fonts/martinvonwyss/{fontstack}/{range}.pbf',
+        sprite: 'mapbox://sprites/martinvonwyss/ckmlvgu8djvdi17tfcr5o8moc/draft'
+    };
+
+    // Google Maps dark theme styles (same as index.html)
+    const GMAP_STYLES = [
+        { elementType: 'geometry', stylers: [{ color: '#1a2333' }] },
+        { elementType: 'labels.text.stroke', stylers: [{ color: '#1a2333' }] },
+        { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] },
+        { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#8a7b6b' }] },
+        { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+        { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#222d3d' }] },
+        { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#1a2333' }] },
+        { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#2a3444' }] },
+        { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+        { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1626' }] },
+        { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#3d5568' }] },
+        { featureType: 'administrative.country', elementType: 'geometry.stroke', stylers: [{ color: '#3d5568' }] },
+    ];
+
+    // ─── Initialize ─────────────────────────────────────────────────────
+
+    function initApp() {
+        initGoogleMap();
+        initMapboxOverlay();
+        loadLabelData();
+    }
+
+    function initGoogleMap() {
+        gmap = new google.maps.Map(document.getElementById('gmap'), {
+            center: { lat: 30, lng: 10 },
+            zoom: 3,
+            styles: GMAP_STYLES,
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: false,
+            zoomControl: false,        // Mapbox has its own on top
+            gestureHandling: 'auto',
+            // Disable all mouse interaction — Mapbox handles it
+            draggable: false,
+            scrollwheel: false,
+            disableDoubleClickZoom: true,
+            keyboardShortcuts: false,
+        });
+    }
+
+    function initMapboxOverlay() {
+        mapboxgl.accessToken = MAPBOX_TOKEN;
+
+        mbmap = new mapboxgl.Map({
+            container: 'mbmap',
+            style: WINE_OVERLAY_STYLE,
+            center: [10, 30],
+            zoom: 2,  // Mapbox zoom is ~1 less than Google at same view
+            attributionControl: false,
+            preserveDrawingBuffer: true,
+        });
+
+        // Add compact nav controls
+        mbmap.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'bottom-left');
+
+        mbmap.on('load', () => {
+            document.getElementById('loading').style.display = 'none';
+            addLabelLayers();
+            // Initial sync Google ← Mapbox
+            syncGmapFromMapbox();
+        });
+
+        // Sync Google Maps when Mapbox viewport changes (user interaction goes to Mapbox)
+        mbmap.on('move', () => {
+            if (!syncing) syncGmapFromMapbox();
+        });
+
+        mbmap.on('zoomend', () => {
+            document.getElementById('zoom-level').textContent = Math.round(mbmap.getZoom());
+            // Show hint at low zoom
+            const hint = document.getElementById('zoom-hint');
+            if (mbmap.getZoom() < 5) {
+                hint.classList.add('visible');
+                clearTimeout(hint._timer);
+                hint._timer = setTimeout(() => hint.classList.remove('visible'), 3000);
+            }
+        });
+
+        // Click interaction on the Mapbox wine region polygons
+        const clickableLayers = ['top-fill', 'middle-fill', 'subregion-fill'];
+        clickableLayers.forEach(layerId => {
+            mbmap.on('click', layerId, (e) => {
+                if (e.features && e.features.length > 0) {
+                    showRegionInfo(e.features[0], e.lngLat, layerId);
+                }
+            });
+        });
+
+        // Hover cursor
+        clickableLayers.forEach(layerId => {
+            mbmap.on('mouseenter', layerId, () => {
+                mbmap.getCanvas().style.cursor = 'pointer';
+            });
+            mbmap.on('mouseleave', layerId, () => {
+                mbmap.getCanvas().style.cursor = '';
+            });
+        });
+
+        // Also allow clicking on the label point layers (added later)
+        mbmap.on('click', 'label-points-top', (e) => handleLabelClick(e, 'top'));
+        mbmap.on('click', 'label-points-mid', (e) => handleLabelClick(e, 'mid'));
+        mbmap.on('click', 'label-points-sub', (e) => handleLabelClick(e, 'sub'));
+    }
+
+    // ─── Viewport Sync ─────────────────────────────────────────────────
+
+    function syncGmapFromMapbox() {
+        if (!gmap || !mbmap) return;
+        syncing = true;
+        const center = mbmap.getCenter();
+        const zoom = mbmap.getZoom();
+        // Google Maps zoom ≈ Mapbox zoom + 1 at equivalent views
+        gmap.setCenter({ lat: center.lat, lng: center.lng });
+        gmap.setZoom(Math.round(zoom + 1));
+        syncing = false;
+    }
+
+    // ─── Label Data (for search + click info) ───────────────────────────
+
+    async function loadLabelData() {
+        const results = await Promise.allSettled([
+            fetch(LABEL_URLS.top).then(r => r.json()),
+            fetch(LABEL_URLS.mid).then(r => r.json()),
+            fetch(LABEL_URLS.sub).then(r => r.json()),
+        ]);
+
+        if (results[0].status === 'fulfilled') labelData.top = results[0].value;
+        if (results[1].status === 'fulfilled') labelData.mid = results[1].value;
+        if (results[2].status === 'fulfilled') labelData.sub = results[2].value;
+
+        // Build flat array for search
+        ['top', 'mid', 'sub'].forEach(level => {
+            if (!labelData[level]) return;
+            labelData[level].features.forEach(f => {
+                allLabels.push({ ...f, _level: level });
+            });
+        });
+
+        populateCountryFilter();
+        addLabelLayers();
+    }
+
+    function addLabelLayers() {
+        if (!mbmap || !mbmap.isStyleLoaded()) return;
+
+        ['top', 'mid', 'sub'].forEach(level => {
+            const data = labelData[level];
+            if (!data) return;
+
+            const sourceId = `labels-${level}`;
+            const pointLayerId = `label-points-${level}`;
+            const textLayerId = `label-text-${level}`;
+
+            if (mbmap.getSource(sourceId)) return; // Already added
+
+            mbmap.addSource(sourceId, { type: 'geojson', data });
+
+            // Invisible clickable point layer
+            mbmap.addLayer({
+                id: pointLayerId,
+                type: 'circle',
+                source: sourceId,
+                paint: {
+                    'circle-radius': 6,
+                    'circle-opacity': 0,
+                    'circle-stroke-opacity': 0,
+                }
+            });
+
+            // Text labels
+            const minZooms = { top: 3, mid: 6, sub: 9 };
+            const textSizes = { top: 13, mid: 12, sub: 11 };
+            const textColors = { top: '#eae9e5', mid: '#ddd8cc', sub: '#bbb5a5' };
+
+            mbmap.addLayer({
+                id: textLayerId,
+                type: 'symbol',
+                source: sourceId,
+                minzoom: minZooms[level],
+                layout: {
+                    'text-field': ['coalesce', ['get', 'name'], ['get', 'Name_rgn'], ['get', 'region'], ''],
+                    'text-size': [
+                        'interpolate', ['linear'], ['zoom'],
+                        minZooms[level], textSizes[level] - 2,
+                        minZooms[level] + 3, textSizes[level],
+                        minZooms[level] + 6, textSizes[level] + 2,
+                    ],
+                    'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+                    'text-anchor': 'center',
+                    'text-allow-overlap': false,
+                    'text-ignore-placement': false,
+                    'text-padding': 8,
+                    'text-max-width': 10,
+                    'visibility': 'visible',
+                },
+                paint: {
+                    'text-color': textColors[level],
+                    'text-halo-color': 'rgba(26, 35, 51, 0.9)',
+                    'text-halo-width': 1.5,
+                    'text-opacity': [
+                        'interpolate', ['linear'], ['zoom'],
+                        minZooms[level], 0,
+                        minZooms[level] + 0.5, 0.9,
+                    ]
+                }
+            });
+        });
+    }
+
+    function populateCountryFilter() {
+        const countries = new Set();
+        allLabels.forEach(f => {
+            const c = f.properties.country || f.properties.Country;
+            if (c) countries.add(c);
+        });
+        const sorted = [...countries].sort();
+        const sel = document.getElementById('country-filter');
+        sorted.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c;
+            opt.textContent = c;
+            sel.appendChild(opt);
+        });
+    }
+
+    // ─── Search ─────────────────────────────────────────────────────────
+
+    function onSearch(query) {
+        const resultsDiv = document.getElementById('search-results');
+        if (!query || query.length < 2) {
+            resultsDiv.classList.remove('active');
+            return;
+        }
+        const q = query.toLowerCase();
+        const matches = allLabels.filter(f => {
+            const name = (f.properties.name || f.properties.Name_rgn || f.properties.region || '').toLowerCase();
+            const country = (f.properties.country || f.properties.Country || '').toLowerCase();
+            return name.includes(q) || country.includes(q);
+        }).slice(0, 15);
+
+        if (matches.length === 0) {
+            resultsDiv.classList.remove('active');
+            return;
+        }
+
+        resultsDiv.innerHTML = matches.map((f, i) => {
+            const name = f.properties.name || f.properties.Name_rgn || f.properties.region || 'Unknown';
+            const country = f.properties.country || f.properties.Country || '';
+            const level = f._level === 'top' ? '🌍' : f._level === 'mid' ? '📍' : '🔎';
+            return `<div class="search-result" onclick="flyToLabel(${i})" data-idx="${i}">
+                <div class="region-name">${level} ${name}</div>
+                <div class="region-meta">${country} · ${f._level}</div>
+            </div>`;
+        }).join('');
+        resultsDiv.classList.add('active');
+
+        // Store current results for click handler
+        resultsDiv._matches = matches;
+    }
+
+    function flyToLabel(idx) {
+        const resultsDiv = document.getElementById('search-results');
+        const f = resultsDiv._matches[idx];
+        if (!f) return;
+
+        const coords = f.geometry.coordinates;
+        const targetZoom = f._level === 'top' ? 5 : f._level === 'mid' ? 8 : 11;
+
+        mbmap.flyTo({
+            center: coords,
+            zoom: targetZoom,
+            duration: 1500
+        });
+
+        resultsDiv.classList.remove('active');
+        document.getElementById('search').value = f.properties.name || f.properties.Name_rgn || '';
+
+        // Show info
+        showLabelInfo(f);
+    }
+
+    // ─── Country Filter ─────────────────────────────────────────────────
+
+    function filterByCountry(country) {
+        if (!country) {
+            // Reset — show all, fly to world view
+            mbmap.flyTo({ center: [10, 30], zoom: 2, duration: 1000 });
+            return;
+        }
+
+        // Find all labels for this country
+        const countryLabels = allLabels.filter(f => {
+            const c = f.properties.country || f.properties.Country || '';
+            return c === country;
+        });
+
+        if (countryLabels.length === 0) return;
+
+        // Compute bounding box
+        let minLng = 180, maxLng = -180, minLat = 90, maxLat = -90;
+        countryLabels.forEach(f => {
+            const [lng, lat] = f.geometry.coordinates;
+            if (lng < minLng) minLng = lng;
+            if (lng > maxLng) maxLng = lng;
+            if (lat < minLat) minLat = lat;
+            if (lat > maxLat) maxLat = lat;
+        });
+
+        mbmap.fitBounds(
+            [[minLng - 1, minLat - 1], [maxLng + 1, maxLat + 1]],
+            { padding: 60, duration: 1500, maxZoom: 10 }
+        );
+    }
+
+    // ─── Layer Toggles ──────────────────────────────────────────────────
+
+    function toggleLevel(level, btn) {
+        layerVisibility[level] = !layerVisibility[level];
+        btn.classList.toggle('active', layerVisibility[level]);
+
+        const vis = layerVisibility[level] ? 'visible' : 'none';
+
+        const layerGroups = {
+            top: ['top-fill', 'top-line', 'top-line-bands'],
+            middle: ['middle-fill', 'middle-line', 'middle-line-bands'],
+            subregion: ['subregion-fill', 'subregion-line', 'subregion-line-bands'],
+            labels: ['label-text-top', 'label-text-mid', 'label-text-sub'],
+        };
+
+        (layerGroups[level] || []).forEach(layerId => {
+            if (mbmap.getLayer(layerId)) {
+                mbmap.setLayoutProperty(layerId, 'visibility', vis);
+            }
+        });
+    }
+
+    // ─── Info Panel ─────────────────────────────────────────────────────
+
+    function showRegionInfo(feature, lngLat, layerId) {
+        const props = feature.properties;
+        const name = props.name || props.Name_rgn || props.region || props.NAME || 'Unknown Region';
+
+        // Try to find matching label data for richer info
+        const labelMatch = allLabels.find(f => {
+            const n = (f.properties.name || f.properties.Name_rgn || f.properties.region || '').toLowerCase();
+            return n === name.toLowerCase();
+        });
+
+        const p = labelMatch ? { ...props, ...labelMatch.properties } : props;
+        renderInfoPanel(name, p, layerId, lngLat);
+    }
+
+    function handleLabelClick(e, level) {
+        if (!e.features || e.features.length === 0) return;
+        const f = e.features[0];
+        const name = f.properties.name || f.properties.Name_rgn || f.properties.region || 'Unknown';
+        renderInfoPanel(name, f.properties, `label-${level}`, e.lngLat);
+    }
+
+    function showLabelInfo(labelFeature) {
+        const name = labelFeature.properties.name || labelFeature.properties.Name_rgn || labelFeature.properties.region || 'Unknown';
+        renderInfoPanel(name, labelFeature.properties, `label-${labelFeature._level}`);
+    }
+
+    function renderInfoPanel(name, p, layerHint, lngLat) {
+        document.getElementById('info-name').textContent = name;
+
+        // Classification
+        const levelStr = layerHint.includes('top') ? 'Top-level Region' :
+                        layerHint.includes('mid') ? 'Mid-level Region' :
+                        'Sub-region';
+        document.getElementById('info-class').textContent = (p.class || p.classification || levelStr);
+
+        let detail = '';
+        const country = p.country || p.Country;
+        if (country) detail += `<strong>Country:</strong> ${country}`;
+        if (p.state || p.State) detail += `<br><strong>State/Province:</strong> ${p.state || p.State}`;
+        if (p.GDD_1 || p.gdd) {
+            const gdd = p.GDD_1 || p.gdd;
+            const warmth = gdd < 1000 ? 'Cool' : gdd < 1500 ? 'Moderate' : gdd < 2000 ? 'Warm' : 'Hot';
+            detail += `<br><strong>Growing Degree Days:</strong> ${gdd} (${warmth})`;
+        }
+        if (p.ppt_yr || p.rainfall) {
+            const rain = p.ppt_yr || p.rainfall;
+            const wetness = rain < 400 ? 'Arid' : rain < 700 ? 'Dry' : rain < 1000 ? 'Moderate' : 'Wet';
+            detail += `<br><strong>Annual Rainfall:</strong> ${rain}mm (${wetness})`;
+        }
+        if (p.climate) detail += `<br><strong>Climate:</strong> ${p.climate}`;
+        if (p.altname) detail += `<br><strong>Also known as:</strong> ${p.altname}`;
+        if (p.varieties || p.grapes) detail += `<br><strong>Key Varieties:</strong> ${p.varieties || p.grapes}`;
+        if (p.style) detail += `<br><strong>Style:</strong> ${p.style}`;
+
+        // WineTrails CTA
+        const slug = WINETRAILS_REGIONS[name];
+        if (slug) {
+            detail += `<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(200,143,127,0.3)">
+                <div style="font-size:11px;color:#c48f7f;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">🍇 Available on WineTrails</div>
+                <a href="${WINETRAILS_BASE_URL}?slug=${slug}" target="_blank" style="
+                    display:inline-block;padding:10px 20px;border-radius:10px;
+                    background:linear-gradient(135deg,#b8860b,#ffd700);color:#1a2333;
+                    font-weight:700;font-size:14px;text-decoration:none;cursor:pointer;
+                    transition:transform 0.2s;
+                " onmouseover="this.style.transform='scale(1.03)'" onmouseout="this.style.transform='scale(1)'">
+                    Generate Tour →
+                </a>
+            </div>`;
+        }
+
+        // Coordinates
+        if (lngLat) {
+            detail += `<br><span style="font-size:11px;color:#8a7b6b">${lngLat.lat.toFixed(3)}°, ${lngLat.lng.toFixed(3)}°</span>`;
+        }
+
+        document.getElementById('info-detail').innerHTML = detail;
+        document.getElementById('info-panel').classList.add('active');
+    }
+
+    function closeInfo() {
+        document.getElementById('info-panel').classList.remove('active');
+    }
+
+    // Close info panel on map click (not on a feature)
+    document.addEventListener('DOMContentLoaded', () => {
+        // Close panel if clicking on map area with no feature
+        // (Handled by Mapbox click bubbling — feature clicks call e.stopPropagation isn't needed;
+        //  we close on empty map click instead)
+    });
+
+    // ─── Bootstrap ──────────────────────────────────────────────────────
+
+    const params = new URLSearchParams(window.location.search);
+    let apiKey = params.get('key');
+    if (!apiKey && window.location.hash.includes('key=')) {
+        apiKey = window.location.hash.split('key=')[1];
+    }
+
+    if (!apiKey) {
+        document.getElementById('loading').innerHTML = `
+            <div style="color:#c48f7f;font-size:18px;text-align:center;padding:20px;">
+                Add your Google Maps API key:<br>
+                <code style="color:#ffd700;margin-top:8px;display:block;">?key=YOUR_API_KEY</code>
+            </div>`;
+    } else {
+        const s = document.createElement('script');
+        s.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initApp`;
+        s.async = true;
+        s.defer = true;
+        document.head.appendChild(s);
+    }
+    </script>
+</body>
+</html>
