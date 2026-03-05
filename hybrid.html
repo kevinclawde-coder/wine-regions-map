@@ -192,9 +192,9 @@
     const MAPBOX_TOKEN = 'pk.eyJ1IjoibWFydGludm9ud3lzcyIsImEiOiJ5UDZqNzlRIn0.C2v_MaFow7-hiueBnq2ELQ';
     const MARTIN_STYLE = 'mapbox://styles/martinvonwyss/ckmlvgu8djvdi17tfcr5o8moc/draft';
     const LABEL_URLS = {
-        top: 'https://worldwineregions.com/wwrmap/top-labels.geojson',
-        mid: 'https://worldwineregions.com/wwrmap/mid-labels.geojson',
-        sub: 'https://worldwineregions.com/wwrmap/subregion-labels.geojson',
+        top: 'top-labels.geojson',
+        mid: 'mid-labels.geojson',
+        sub: 'subregion-labels.geojson',
     };
 
     let map;
@@ -280,6 +280,113 @@
 
     map.on('load', () => {
         document.getElementById('loading').style.display = 'none';
+
+        // ─── Dark Mode Overrides ────────────────────────────────────────
+        // Override Martin's light base map to match WineTrails dark theme
+        try {
+            // Background
+            if (map.getLayer('background')) {
+                map.setPaintProperty('background', 'background-color', '#1a2333');
+            }
+            // Water
+            if (map.getLayer('water')) {
+                map.setPaintProperty('water', 'fill-color', '#0d1520');
+                map.setPaintProperty('water', 'fill-opacity', 1);
+            }
+            if (map.getLayer('water texture')) {
+                map.setLayoutProperty('water texture', 'visibility', 'none');
+            }
+            if (map.getLayer('water line')) {
+                map.setPaintProperty('water line', 'line-color', '#1a2333');
+            }
+            // Bathymetry
+            if (map.getLayer('bathymetry styling')) {
+                map.setLayoutProperty('bathymetry styling', 'visibility', 'none');
+            }
+            // Terrain hillshade — darken
+            if (map.getLayer('terrain')) {
+                map.setPaintProperty('terrain', 'hillshade-shadow-color', '#0a0f18');
+                map.setPaintProperty('terrain', 'hillshade-accent-color', '#2a3548');
+            }
+            // Parks
+            if (map.getLayer('parks')) {
+                map.setPaintProperty('parks', 'fill-color', '#1e2d1e');
+                map.setPaintProperty('parks', 'fill-opacity', 0.3);
+            }
+            // Roads — make subtle
+            ['major roads', 'major roads casing', 'minor roads', 'all other roads'].forEach(id => {
+                if (map.getLayer(id)) {
+                    map.setPaintProperty(id, 'line-color', '#2a3548');
+                }
+            });
+            ['paths', 'path-bg', 'rails', 'rails bg', 'ferries'].forEach(id => {
+                if (map.getLayer(id)) {
+                    map.setPaintProperty(id, 'line-color', '#232f40');
+                }
+            });
+            // Admin/country borders
+            if (map.getLayer('country admin bg')) {
+                map.setPaintProperty('country admin bg', 'line-color', '#3a4a5a');
+            }
+            if (map.getLayer('state lines')) {
+                map.setPaintProperty('state lines', 'line-color', '#2a3a4a');
+            }
+            if (map.getLayer('maritime admin')) {
+                map.setPaintProperty('maritime admin', 'line-color', '#1a2838');
+            }
+            if (map.getLayer('maritime  admin shadow')) {
+                map.setPaintProperty('maritime  admin shadow', 'line-color', '#1a2838');
+            }
+            // Graticules
+            if (map.getLayer('ne-10m-graticules-5')) {
+                map.setPaintProperty('ne-10m-graticules-5', 'line-color', '#1e2a3a');
+            }
+            // Contours
+            if (map.getLayer('contour')) {
+                map.setPaintProperty('contour', 'line-color', '#2a3548');
+            }
+            if (map.getLayer('contour labels')) {
+                map.setPaintProperty('contour labels', 'text-color', '#4a5a6a');
+                map.setPaintProperty('contour labels', 'text-halo-color', '#1a2333');
+            }
+            // Aeroway
+            if (map.getLayer('aeroway')) {
+                map.setPaintProperty('aeroway', 'line-color', '#2a3548');
+            }
+            // Water labels
+            ['water label', 'waterway label'].forEach(id => {
+                if (map.getLayer(id)) {
+                    map.setPaintProperty(id, 'text-color', '#4a6a8a');
+                    map.setPaintProperty(id, 'text-halo-color', '#0d1520');
+                }
+            });
+            // Marine labels
+            ['marine label', 'marine label med'].forEach(id => {
+                if (map.getLayer(id)) {
+                    map.setPaintProperty(id, 'text-color', '#2a4a6a');
+                    map.setPaintProperty(id, 'text-halo-color', '#0d1520');
+                }
+            });
+            // All other text labels — make them light on dark
+            map.getStyle().layers.forEach(layer => {
+                if (layer.type === 'symbol' && !layer.id.match(/wine|region|top-|middle-|subregion|label/i)) {
+                    try {
+                        if (layer.paint && layer.paint['text-color']) {
+                            map.setPaintProperty(layer.id, 'text-color', '#8a9aaa');
+                            map.setPaintProperty(layer.id, 'text-halo-color', '#1a2333');
+                        }
+                    } catch(e) {}
+                }
+            });
+            // Satellite layer — keep as-is but darken
+            if (map.getLayer('mapbox-satellite')) {
+                map.setPaintProperty('mapbox-satellite', 'raster-brightness-max', 0.5);
+                map.setPaintProperty('mapbox-satellite', 'raster-brightness-min', 0.05);
+            }
+        } catch(e) {
+            console.warn('Dark mode override error:', e);
+        }
+
         loadLabelData();
 
         // Click on wine region polygons for info
