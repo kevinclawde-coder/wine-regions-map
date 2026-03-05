@@ -502,13 +502,16 @@
     }
 
     function buildColorMatchExpr(mode) {
-        // Build a Mapbox GL 'match' expression: ['match', ['get', 'Name_rgn'], name1, color1, name2, color2, ..., defaultColor]
+        // Build a Mapbox GL 'match' expression: ['match', ['get', 'Name_rgn'], name1, color1, ...]
+        // IMPORTANT: match requires UNIQUE keys — deduplicate by Name_rgn (first occurrence wins)
+        const seen = new Set();
         const expr = ['match', ['get', 'Name_rgn']];
 
         allLabels.forEach(f => {
             const p = f.properties;
             const name = p.Name_rgn;
-            if (!name) return;
+            if (!name || seen.has(name)) return;  // Skip duplicates!
+            seen.add(name);
 
             let color = null;
             if (mode === 'gdd' && p.GDD_1) {
@@ -516,25 +519,23 @@
             } else if (mode === 'rain' && p.ppt_yr) {
                 color = rainToColor(p.ppt_yr);
             } else if (mode === 'climate') {
-                // Use GDD-based climate bucketing since actual climate field is sparse
                 if (p.GDD_1) {
-                    if (p.GDD_1 >= 2200) color = '#FF6F00';       // Hot
-                    else if (p.GDD_1 >= 1800) color = '#EF5350';  // Warm
-                    else if (p.GDD_1 >= 1400) color = '#66BB6A';  // Temperate
-                    else if (p.GDD_1 >= 1000) color = '#42A5F5';  // Cool
-                    else color = '#5C6BC0';                         // Cold
+                    if (p.GDD_1 >= 2200) color = '#FF6F00';
+                    else if (p.GDD_1 >= 1800) color = '#EF5350';
+                    else if (p.GDD_1 >= 1400) color = '#66BB6A';
+                    else if (p.GDD_1 >= 1000) color = '#42A5F5';
+                    else color = '#5C6BC0';
                 }
-                // Override with actual climate string if available
                 if (p.climate) color = climateToColor(p.climate);
             }
 
-            if (color && name) {
+            if (color) {
                 expr.push(name, color);
             }
         });
 
-        // Default color for unmatched
         expr.push('rgba(80,80,80,0.3)');
+        console.log(`Built ${mode} match expression with ${seen.size} unique regions, ${(expr.length - 3) / 2} color mappings`);
         return expr;
     }
 
