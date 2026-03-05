@@ -357,7 +357,7 @@
         
         async function loadPolygons() {
             try {
-                const resp = await fetch('polygons.json?v=20260305c');
+                const resp = await fetch('polygons.json?v=20260305bc');
                 const data = await resp.json();
                 polygonFeatures = data.features;
                 populateFilters();
