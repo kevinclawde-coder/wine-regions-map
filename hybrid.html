@@ -86,6 +86,32 @@
         }
         .info-panel .close-btn:hover { opacity: 1; }
 
+        .info-panel .cta-buttons { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+        .info-panel .cta-btn {
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            padding: 12px 16px; border-radius: 12px; font-size: 14px; font-weight: 600;
+            cursor: pointer; border: none; transition: all 0.2s;
+        }
+        .cta-btn.primary {
+            background: #ffd700; color: #1a2333;
+        }
+        .cta-btn.primary:hover { background: #ffed4a; }
+        .cta-btn.secondary {
+            background: transparent; color: #ffd700;
+            border: 1.5px solid #ffd700;
+        }
+        .cta-btn.secondary:hover { background: rgba(255, 215, 0, 0.1); }
+        .cta-btn.coming-soon {
+            background: rgba(255,255,255,0.05); color: rgba(234,233,229,0.4);
+            border: 1px solid rgba(255,255,255,0.1); cursor: default;
+        }
+        .live-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 700;
+            background: rgba(255,215,0,0.15); color: #ffd700;
+            border: 1px solid rgba(255,215,0,0.4); margin-left: 8px;
+        }
+
         .loading {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             z-index: 20; color: #ffd700; font-size: 16px; text-align: center;
@@ -206,6 +232,24 @@
         mid: 'mid-labels.geojson',
         sub: 'subregion-labels.geojson',
     };
+
+    // Live regions with WineTrails tours built
+    const LIVE_REGIONS = [
+        'gibbston', 'cromwell', 'wanaka', 'bendigo', 'bannockburn', 'alexandra',
+        'marlborough', 'hawkes bay', "hawke's bay", 'waiheke', 'waiheke island',
+        'martinborough', 'wairarapa', 'nelson', 'waipara', 'waitaki',
+        'canterbury', 'auckland', 'northland', 'gisborne'
+    ];
+
+    function isLiveRegion(name) {
+        if (!name) return false;
+        const n = name.toLowerCase();
+        return LIVE_REGIONS.some(slug => n.includes(slug) || slug.includes(n));
+    }
+
+    function regionToSlug(name) {
+        return name.toLowerCase().replace(/'/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    }
 
     let map;
     let allLabels = [];     // merged label features from all 3 GeoJSON files
@@ -595,7 +639,13 @@
     // ─── Info Panel ─────────────────────────────────────────────────────
     function showRegionInfo(props, lngLat) {
         const panel = document.getElementById('info-panel');
-        document.getElementById('info-name').textContent = props.Name_rgn || props.name || 'Unknown';
+        const name = props.Name_rgn || props.name || 'Unknown';
+        const live = isLiveRegion(name);
+        const slug = regionToSlug(name);
+
+        // Name + live badge
+        document.getElementById('info-name').innerHTML = name +
+            (live ? '<span class="live-badge">⭐ LIVE</span>' : '');
         document.getElementById('info-class').textContent = props.class || '';
 
         // Try to find matching label for full metadata
@@ -619,8 +669,40 @@
         if (labelProps.style) detail += `<strong>Varieties:</strong> ${labelProps.style}<br>`;
         if (labelProps.latitude) detail += `<strong>Latitude:</strong> ${Math.abs(labelProps.latitude).toFixed(2)}° ${labelProps.latitude >= 0 ? 'N' : 'S'}<br>`;
 
+        // CTA buttons
+        detail += '<div class="cta-buttons">';
+        if (live) {
+            detail += `<button class="cta-btn primary" onclick="navigateToRegion('${slug}')">
+                🍇 Explore Wine Tours
+            </button>`;
+            detail += `<button class="cta-btn secondary" onclick="generateTour('${slug}')">
+                ✨ Generate Custom Tour
+            </button>`;
+        } else {
+            detail += `<button class="cta-btn coming-soon">
+                🔜 Coming Soon
+            </button>`;
+        }
+        detail += '</div>';
+
         document.getElementById('info-detail').innerHTML = detail || 'Zoom in for more detail.';
         panel.classList.add('active');
+    }
+
+    function navigateToRegion(slug) {
+        // Communicate with parent app (Base44 iframe or Flutter WebView)
+        window.parent.postMessage({ type: 'winetrails-navigate', slug: slug }, '*');
+        // Also try opening directly if not in iframe
+        if (window === window.parent) {
+            window.open('https://winetrails.io/SelfGuidedDetail?slug=' + encodeURIComponent(slug), '_blank');
+        }
+    }
+
+    function generateTour(slug) {
+        window.parent.postMessage({ type: 'winetrails-generate-tour', slug: slug }, '*');
+        if (window === window.parent) {
+            window.open('https://winetrails.io/SelfGuidedDetail?slug=' + encodeURIComponent(slug) + '&generate=true', '_blank');
+        }
     }
 
     function closeInfo() {
