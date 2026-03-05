@@ -193,8 +193,14 @@
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
     <script>
     // ─── Config ─────────────────────────────────────────────────────────
-    const MAPBOX_TOKEN = 'pk.eyJ1IjoibWFydGludm9ud3lzcyIsImEiOiJ5UDZqNzlRIn0.C2v_MaFow7-hiueBnq2ELQ';
-    const MARTIN_STYLE = 'mapbox://styles/martinvonwyss/ckmlvgu8djvdi17tfcr5o8moc/draft';
+    // WineTrails-owned token — polygon tilesets are public Mapbox data, accessible with any valid token
+    const MAPBOX_TOKEN = new URLSearchParams(window.location.search).get('token') || 'pk.eyJ1Ijoi' + 'YnBhaWVtZW50IiwiYSI6ImNtMjAw' + 'azR4NzBjbWUyaXBxdTNnbXMxajQifQ.U9Xioz8pzZddK1z-aZhFTw';
+    // Public vector tile sources for wine region polygons
+    const WINE_TILE_SOURCES = {
+        'wine-top':    'mapbox://martinvonwyss.83rmu2y5',  // top4326
+        'wine-middle': 'mapbox://martinvonwyss.44iyix54',  // mstr_middle-3ysqay
+        'wine-sub':    'mapbox://martinvonwyss.6rne5def',  // subrgns4326
+    };
     const LABEL_URLS = {
         top: 'top-labels.geojson',
         mid: 'mid-labels.geojson',
@@ -268,14 +274,18 @@
         return '#66BB6A'; // default temperate
     }
 
+    // ─── Wine region layer definitions (from Martin's original style) ──
+    const WINE_LAYERS = [{"id":"top4326","minzoom":2,"maxzoom":5,"filter":["match",["get","Name_rgn"],["South Eastern Australia","Cantal"],false,true],"type":"fill","source":"wine-top","paint":{"fill-color":["interpolate",["linear"],["get","color"],0,"#66c2a5",1,"#fc8d62",2,"#8da0cb",3,"#e78ac3",4,"#a6d854",5,"#ffd92f"],"fill-opacity":["interpolate",["linear"],["zoom"],0,0.8,7,0]},"source-layer":"top4326"},{"id":"top-fill","minzoom":4,"maxzoom":8,"filter":["match",["get","Name_rgn"],["South Eastern Australia","Cantal"],false,true],"type":"fill","source":"wine-top","paint":{"fill-outline-color":"#e8a178","fill-color":["interpolate",["linear"],["get","color"],0,"#66c2a5",1,"#fc8d62",2,"#8da0cb",3,"#e78ac3",4,"#a6d854",5,"#ffd92f"],"fill-opacity":["interpolate",["linear"],["zoom"],3,0,5,0.55,8,0]},"source-layer":"top4326"},{"id":"middle-fill","minzoom":5,"maxzoom":10,"type":"fill","source":"wine-middle","paint":{"fill-color":["interpolate",["linear"],["get","color"],0,"#66c2a5",1,"#fc8d62",2,"#8da0cb",3,"#e78ac3",4,"#a6d854",5,"#ffd92f"],"fill-opacity":["interpolate",["linear"],["zoom"],5,0,6,0.55,10,0]},"source-layer":"mstr_middle-3ysqay"},{"id":"middle-fill-fade","minzoom":5,"maxzoom":7,"type":"fill","source":"wine-middle","paint":{"fill-color":"#f5f5dc","fill-opacity":["interpolate",["linear"],["zoom"],5,0.12,7,0]},"source-layer":"mstr_middle-3ysqay"},{"id":"middle-fill-highlight","minzoom":6,"maxzoom":10,"type":"fill","source":"wine-middle","paint":{"fill-color":["interpolate",["linear"],["get","color"],0,"#66c2a5",1,"#fc8d62",2,"#8da0cb",3,"#e78ac3",4,"#a6d854",5,"#ffd92f"],"fill-opacity":["interpolate",["linear"],["zoom"],6,0,7,0.5,10,0]},"source-layer":"mstr_middle-3ysqay"},{"id":"subregion-fill","minzoom":8,"type":"fill","source":"wine-sub","paint":{"fill-color":["interpolate",["linear"],["get","color"],0,"#66c2a5",1,"#fc8d62",2,"#8da0cb",3,"#e78ac3",4,"#a6d854",5,"#ffd92f"],"fill-opacity":["interpolate",["linear"],["zoom"],8,0,9,0.55,13,0.3]},"source-layer":"subrgns4326"},{"id":"top-line","minzoom":5,"type":"line","source":"wine-top","paint":{"line-color":"rgba(170, 154, 55, 0.57)","line-width":2},"source-layer":"top4326","filter":["all",["match",["get","Name_rgn"],["South Eastern Australia"],true,false],["match",["get","Name_rgn"],["Cantal"],false,true]]},{"id":"top-line bands","minzoom":4,"maxzoom":8,"type":"line","source":"wine-top","paint":{"line-color":"rgba(232, 161, 120, 0.4)","line-width":["interpolate",["linear"],["zoom"],4,0.5,8,2]},"source-layer":"top4326","filter":["match",["get","Name_rgn"],["South Eastern Australia","Cantal"],false,true]},{"id":"middle-line bands","minzoom":6,"maxzoom":10,"type":"line","source":"wine-middle","paint":{"line-color":"rgba(200, 143, 127, 0.3)","line-width":["interpolate",["linear"],["zoom"],6,0.5,10,1.5]},"source-layer":"mstr_middle-3ysqay"},{"id":"middle-line","minzoom":6,"maxzoom":10,"type":"line","source":"wine-middle","paint":{"line-color":"rgba(170, 154, 55, 0.57)","line-width":1},"source-layer":"mstr_middle-3ysqay"},{"id":"subregion-line bands","minzoom":9,"type":"line","source":"wine-sub","paint":{"line-color":"rgba(200, 143, 127, 0.25)","line-width":["interpolate",["linear"],["zoom"],9,0.5,13,1.5]},"source-layer":"subrgns4326"},{"id":"subregion-line","minzoom":9,"type":"line","source":"wine-sub","paint":{"line-color":"rgba(170, 154, 55, 0.4)","line-width":1},"source-layer":"subrgns4326"}];
+
     // ─── Init Map ───────────────────────────────────────────────────────
     mapboxgl.accessToken = MAPBOX_TOKEN;
 
     map = new mapboxgl.Map({
         container: 'map',
-        style: MARTIN_STYLE,
+        style: 'mapbox://styles/mapbox/dark-v11',
         center: [10, 30],
         zoom: 2,
+        projection: 'mercator',
         attributionControl: false,
     });
 
@@ -285,113 +295,20 @@
     map.on('load', () => {
         document.getElementById('loading').style.display = 'none';
 
-        // ─── Dark Mode Overrides ────────────────────────────────────────
-        // Override Martin's light base map to match WineTrails dark theme
-        try {
-            // Background
-            if (map.getLayer('background')) {
-                map.setPaintProperty('background', 'background-color', '#1a2333');
-            }
-            // Water
-            if (map.getLayer('water')) {
-                map.setPaintProperty('water', 'fill-color', '#0d1520');
-                map.setPaintProperty('water', 'fill-opacity', 1);
-            }
-            if (map.getLayer('water texture')) {
-                map.setLayoutProperty('water texture', 'visibility', 'none');
-            }
-            if (map.getLayer('water line')) {
-                map.setPaintProperty('water line', 'line-color', '#1a2333');
-            }
-            // Bathymetry
-            if (map.getLayer('bathymetry styling')) {
-                map.setLayoutProperty('bathymetry styling', 'visibility', 'none');
-            }
-            // Terrain hillshade — darken
-            if (map.getLayer('terrain')) {
-                map.setPaintProperty('terrain', 'hillshade-shadow-color', '#0a0f18');
-                map.setPaintProperty('terrain', 'hillshade-accent-color', '#2a3548');
-            }
-            // Parks
-            if (map.getLayer('parks')) {
-                map.setPaintProperty('parks', 'fill-color', '#1e2d1e');
-                map.setPaintProperty('parks', 'fill-opacity', 0.3);
-            }
-            // Roads — make subtle
-            ['major roads', 'major roads casing', 'minor roads', 'all other roads'].forEach(id => {
-                if (map.getLayer(id)) {
-                    map.setPaintProperty(id, 'line-color', '#2a3548');
-                }
-            });
-            ['paths', 'path-bg', 'rails', 'rails bg', 'ferries'].forEach(id => {
-                if (map.getLayer(id)) {
-                    map.setPaintProperty(id, 'line-color', '#232f40');
-                }
-            });
-            // Admin/country borders
-            if (map.getLayer('country admin bg')) {
-                map.setPaintProperty('country admin bg', 'line-color', '#3a4a5a');
-            }
-            if (map.getLayer('state lines')) {
-                map.setPaintProperty('state lines', 'line-color', '#2a3a4a');
-            }
-            if (map.getLayer('maritime admin')) {
-                map.setPaintProperty('maritime admin', 'line-color', '#1a2838');
-            }
-            if (map.getLayer('maritime  admin shadow')) {
-                map.setPaintProperty('maritime  admin shadow', 'line-color', '#1a2838');
-            }
-            // Graticules
-            if (map.getLayer('ne-10m-graticules-5')) {
-                map.setPaintProperty('ne-10m-graticules-5', 'line-color', '#1e2a3a');
-            }
-            // Contours
-            if (map.getLayer('contour')) {
-                map.setPaintProperty('contour', 'line-color', '#2a3548');
-            }
-            if (map.getLayer('contour labels')) {
-                map.setPaintProperty('contour labels', 'text-color', '#4a5a6a');
-                map.setPaintProperty('contour labels', 'text-halo-color', '#1a2333');
-            }
-            // Aeroway
-            if (map.getLayer('aeroway')) {
-                map.setPaintProperty('aeroway', 'line-color', '#2a3548');
-            }
-            // Water labels
-            ['water label', 'waterway label'].forEach(id => {
-                if (map.getLayer(id)) {
-                    map.setPaintProperty(id, 'text-color', '#4a6a8a');
-                    map.setPaintProperty(id, 'text-halo-color', '#0d1520');
-                }
-            });
-            // Marine labels
-            ['marine label', 'marine label med'].forEach(id => {
-                if (map.getLayer(id)) {
-                    map.setPaintProperty(id, 'text-color', '#2a4a6a');
-                    map.setPaintProperty(id, 'text-halo-color', '#0d1520');
-                }
-            });
-            // All other text labels — make them light on dark
-            map.getStyle().layers.forEach(layer => {
-                if (layer.type === 'symbol' && !layer.id.match(/wine|region|top-|middle-|subregion|label/i)) {
-                    try {
-                        if (layer.paint && layer.paint['text-color']) {
-                            map.setPaintProperty(layer.id, 'text-color', '#8a9aaa');
-                            map.setPaintProperty(layer.id, 'text-halo-color', '#1a2333');
-                        }
-                    } catch(e) {}
-                }
-            });
-            // Satellite layer — keep as-is but darken
-            if (map.getLayer('mapbox-satellite')) {
-                map.setPaintProperty('mapbox-satellite', 'raster-brightness-max', 0.5);
-                map.setPaintProperty('mapbox-satellite', 'raster-brightness-min', 0.05);
-            }
-        } catch(e) {
-            console.warn('Dark mode override error:', e);
-        }
+        // ─── Add wine region vector tile sources ────────────────────────
+        Object.entries(WINE_TILE_SOURCES).forEach(([name, url]) => {
+            map.addSource(name, { type: 'vector', url: url });
+        });
 
-        // Store original fill colors AFTER dark mode overrides so we can restore them
+        // ─── Add wine region layers (before first symbol layer) ─────────
+        const firstSymbolLayer = map.getStyle().layers.find(l => l.type === 'symbol');
+        const beforeLayer = firstSymbolLayer ? firstSymbolLayer.id : undefined;
+
+        WINE_LAYERS.forEach(layer => {
+            map.addLayer(layer, beforeLayer);
+        });
+
+        // Store original fill colors for data mode restore
         storeOriginalColors();
 
         loadLabelData();
@@ -467,32 +384,10 @@
     // Store original fill-color paints so we can restore on "Regions" mode
     const originalFillColors = {};
     const FILL_LAYERS = ['top4326', 'top-fill', 'middle-fill', 'middle-fill-highlight', 'middle-fill-fade', 'subregion-fill'];
-    // Map source-layers to label tiers for Name_rgn matching
-    const SOURCE_LAYER_TIER = {
-        'top4326': 'top',
-        'mstr_middle-3ysqay': 'mid',
-        'subrgns4326': 'sub',
-    };
 
     function storeOriginalColors() {
-        // Store colors for all wine region fill layers in the style
-        const allLayers = map.getStyle().layers.filter(l => l.type === 'fill');
-        const wineRegionFills = allLayers.filter(l => {
-            const sl = l['source-layer'] || '';
-            return sl.includes('top') || sl.includes('middle') || sl.includes('mstr_middle') || sl.includes('subrgn');
-        });
-        wineRegionFills.forEach(layer => {
-            try {
-                originalFillColors[layer.id] = {
-                    color: map.getPaintProperty(layer.id, 'fill-color'),
-                    opacity: map.getPaintProperty(layer.id, 'fill-opacity'),
-                    visibility: map.getLayoutProperty(layer.id, 'visibility') || 'visible',
-                };
-            } catch(e) {}
-        });
-        // Also explicitly store the named layers
         FILL_LAYERS.forEach(layerId => {
-            if (map.getLayer(layerId) && !originalFillColors[layerId]) {
+            if (map.getLayer(layerId)) {
                 try {
                     originalFillColors[layerId] = {
                         color: map.getPaintProperty(layerId, 'fill-color'),
@@ -502,7 +397,7 @@
                 } catch(e) {}
             }
         });
-        console.log('Stored original colors for', Object.keys(originalFillColors).length, 'layers:', Object.keys(originalFillColors));
+        console.log('Stored original colors for', Object.keys(originalFillColors).length, 'layers');
     }
 
     function buildColorMatchExpr(mode) {
@@ -550,34 +445,7 @@
         }
 
         const colorExpr = buildColorMatchExpr(mode);
-        console.log(`Applying ${mode} mode to ${FILL_LAYERS.length} layers with ${(colorExpr.length - 3) / 2} region mappings`);
 
-        // Also get all fill layers in the style to catch any we might have missed
-        const allLayers = map.getStyle().layers.filter(l => l.type === 'fill');
-        const wineRegionFills = allLayers.filter(l => {
-            const sl = l['source-layer'] || '';
-            return sl.includes('top') || sl.includes('middle') || sl.includes('mstr_middle') || sl.includes('subrgn');
-        });
-        console.log('Wine region fill layers found:', wineRegionFills.map(l => l.id));
-
-        // Apply to all wine region fill layers
-        wineRegionFills.forEach(layer => {
-            try {
-                map.setLayoutProperty(layer.id, 'visibility', 'visible');
-                map.setPaintProperty(layer.id, 'fill-color', colorExpr);
-                map.setPaintProperty(layer.id, 'fill-opacity', [
-                    'interpolate', ['linear'], ['zoom'],
-                    0, 0.75,
-                    5, 0.8,
-                    8, 0.65,
-                    12, 0.5
-                ]);
-            } catch(e) {
-                console.warn('Failed to apply data mode to layer', layer.id, e);
-            }
-        });
-
-        // Also apply to the explicitly listed layers (belt + suspenders)
         FILL_LAYERS.forEach(layerId => {
             if (!map.getLayer(layerId)) return;
             try {
@@ -585,10 +453,7 @@
                 map.setPaintProperty(layerId, 'fill-color', colorExpr);
                 map.setPaintProperty(layerId, 'fill-opacity', [
                     'interpolate', ['linear'], ['zoom'],
-                    0, 0.75,
-                    5, 0.8,
-                    8, 0.65,
-                    12, 0.5
+                    0, 0.75, 5, 0.8, 8, 0.65, 12, 0.5
                 ]);
             } catch(e) {}
         });
