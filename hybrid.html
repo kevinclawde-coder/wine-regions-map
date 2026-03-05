@@ -471,18 +471,34 @@
     };
 
     function storeOriginalColors() {
+        // Store colors for all wine region fill layers in the style
+        const allLayers = map.getStyle().layers.filter(l => l.type === 'fill');
+        const wineRegionFills = allLayers.filter(l => {
+            const sl = l['source-layer'] || '';
+            return sl.includes('top') || sl.includes('middle') || sl.includes('mstr_middle') || sl.includes('subrgn');
+        });
+        wineRegionFills.forEach(layer => {
+            try {
+                originalFillColors[layer.id] = {
+                    color: map.getPaintProperty(layer.id, 'fill-color'),
+                    opacity: map.getPaintProperty(layer.id, 'fill-opacity'),
+                    visibility: map.getLayoutProperty(layer.id, 'visibility') || 'visible',
+                };
+            } catch(e) {}
+        });
+        // Also explicitly store the named layers
         FILL_LAYERS.forEach(layerId => {
-            if (map.getLayer(layerId)) {
-                const style = map.getLayoutProperty(layerId, 'visibility') !== undefined ? map.getLayoutProperty(layerId, 'visibility') : 'visible';
+            if (map.getLayer(layerId) && !originalFillColors[layerId]) {
                 try {
                     originalFillColors[layerId] = {
                         color: map.getPaintProperty(layerId, 'fill-color'),
                         opacity: map.getPaintProperty(layerId, 'fill-opacity'),
-                        visibility: style,
+                        visibility: map.getLayoutProperty(layerId, 'visibility') || 'visible',
                     };
                 } catch(e) {}
             }
         });
+        console.log('Stored original colors for', Object.keys(originalFillColors).length, 'layers:', Object.keys(originalFillColors));
     }
 
     function buildColorMatchExpr(mode) {
@@ -523,33 +539,58 @@
     }
 
     function applyDataMode(mode) {
-        if (!allLabels.length) return;
+        if (!allLabels.length) {
+            console.warn('No label data loaded yet — cannot apply data mode');
+            return;
+        }
 
         const colorExpr = buildColorMatchExpr(mode);
+        console.log(`Applying ${mode} mode to ${FILL_LAYERS.length} layers with ${(colorExpr.length - 3) / 2} region mappings`);
 
-        FILL_LAYERS.forEach(layerId => {
-            if (!map.getLayer(layerId)) return;
+        // Also get all fill layers in the style to catch any we might have missed
+        const allLayers = map.getStyle().layers.filter(l => l.type === 'fill');
+        const wineRegionFills = allLayers.filter(l => {
+            const sl = l['source-layer'] || '';
+            return sl.includes('top') || sl.includes('middle') || sl.includes('mstr_middle') || sl.includes('subrgn');
+        });
+        console.log('Wine region fill layers found:', wineRegionFills.map(l => l.id));
 
+        // Apply to all wine region fill layers
+        wineRegionFills.forEach(layer => {
             try {
-                // Make all fill layers visible and apply data-driven color
-                map.setLayoutProperty(layerId, 'visibility', 'visible');
-                map.setPaintProperty(layerId, 'fill-color', colorExpr);
-                // Boost opacity so colors are clearly visible
-                map.setPaintProperty(layerId, 'fill-opacity', [
+                map.setLayoutProperty(layer.id, 'visibility', 'visible');
+                map.setPaintProperty(layer.id, 'fill-color', colorExpr);
+                map.setPaintProperty(layer.id, 'fill-opacity', [
                     'interpolate', ['linear'], ['zoom'],
-                    0, 0.7,
-                    5, 0.75,
-                    8, 0.6,
-                    12, 0.4
+                    0, 0.75,
+                    5, 0.8,
+                    8, 0.65,
+                    12, 0.5
                 ]);
             } catch(e) {
-                console.warn('Failed to apply data mode to layer', layerId, e);
+                console.warn('Failed to apply data mode to layer', layer.id, e);
             }
+        });
+
+        // Also apply to the explicitly listed layers (belt + suspenders)
+        FILL_LAYERS.forEach(layerId => {
+            if (!map.getLayer(layerId)) return;
+            try {
+                map.setLayoutProperty(layerId, 'visibility', 'visible');
+                map.setPaintProperty(layerId, 'fill-color', colorExpr);
+                map.setPaintProperty(layerId, 'fill-opacity', [
+                    'interpolate', ['linear'], ['zoom'],
+                    0, 0.75,
+                    5, 0.8,
+                    8, 0.65,
+                    12, 0.5
+                ]);
+            } catch(e) {}
         });
     }
 
     function restoreDefaultColors() {
-        FILL_LAYERS.forEach(layerId => {
+        Object.keys(originalFillColors).forEach(layerId => {
             if (!map.getLayer(layerId)) return;
             const orig = originalFillColors[layerId];
             if (orig) {
