@@ -233,11 +233,11 @@
         sub: 'subregion-labels.geojson',
     };
 
-    // Live regions with WineTrails tours built
+    // Live regions with WineTrails tours built — exactly 17
     const LIVE_REGIONS = [
         'gibbston', 'cromwell', 'wanaka', 'bendigo', 'bannockburn', 'alexandra',
-        'marlborough', 'hawkes bay', "hawke's bay", 'waiheke', 'waiheke island',
-        'martinborough', 'wairarapa', 'nelson', 'waipara', 'waitaki',
+        'marlborough', "hawke's bay", 'hawkes bay', 'waiheke island', 'waiheke',
+        'wairarapa', 'martinborough', 'nelson', 'waipara', 'waitaki',
         'canterbury', 'auckland', 'northland', 'gisborne'
     ];
 
@@ -327,8 +327,8 @@
     map = new mapboxgl.Map({
         container: 'map',
         style: 'mapbox://styles/mapbox/dark-v11',
-        center: [10, 30],
-        zoom: 2,
+        center: [172, -42],
+        zoom: 5,
         projection: 'globe',
         attributionControl: false,
     });
