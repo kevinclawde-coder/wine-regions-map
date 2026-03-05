@@ -764,11 +764,11 @@
                 });
                 detail += '</div>';
             } else {
-                // Web: show sub-regions with links
+                // Web: show sub-regions — link to their SelfGuidedDetail pages
                 detail += `<div class="sub-region-header">${parent.label}</div>`;
                 detail += '<div class="sub-region-list">';
                 parent.subregions.forEach(sr => {
-                    detail += `<div class="sub-region-item" onclick="navigateToRegion('${sr.slug}')">
+                    detail += `<div class="sub-region-item" onclick="generateTour('${sr.slug}')">
                         <div>
                             <div class="sr-name">🍇 ${sr.name}</div>
                             <div class="sr-tag">${sr.tag}</div>
