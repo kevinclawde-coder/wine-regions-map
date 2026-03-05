@@ -247,7 +247,50 @@
         return LIVE_REGIONS.some(slug => n.includes(slug) || slug.includes(n));
     }
 
+    // Map worldwineregions.com label/polygon names → our actual Base44 slugs
+    const SLUG_MAP = {
+        'gibbston': 'gibbston',
+        'gibbston valley': 'gibbston',
+        'cromwell': 'cromwell',
+        'cromwell basin': 'cromwell',
+        'bannockburn': 'bannockburn',
+        'bendigo': 'bendigo',
+        'alexandra': 'alexandra',
+        'wanaka': 'wanaka',
+        'central otago': 'gibbston',  // default CO → gibbston (flagship)
+        'marlborough': 'marlborough',
+        "hawke's bay / hawkes bay": 'hawkes-bay',
+        "hawke's bay": 'hawkes-bay',
+        'hawkes bay': 'hawkes-bay',
+        "central hawke's bay / central hawkes bay": 'hawkes-bay',
+        "central hawke's bay": 'hawkes-bay',
+        'central hawkes bay': 'hawkes-bay',
+        'waiheke island': 'waiheke-island',
+        'waiheke': 'waiheke-island',
+        'wairarapa': 'wairarapa',
+        'martinborough': 'wairarapa',
+        'gladstone': 'wairarapa',
+        'nelson': 'nelson',
+        'waipara valley / waipara': 'waipara',
+        'waipara valley': 'waipara',
+        'waipara': 'waipara',
+        'north canterbury': 'waipara',
+        'waitaki valley north otago': 'waitaki',
+        'waitaki valley': 'waitaki',
+        'waitaki': 'waitaki',
+        'canterbury': 'canterbury',
+        'auckland': 'auckland',
+        'kumeu': 'auckland',
+        'matakana': 'auckland',
+        'northland': 'northland',
+        'gisborne': 'gisborne',
+    };
+
     function regionToSlug(name) {
+        if (!name) return '';
+        const slug = SLUG_MAP[name.toLowerCase()];
+        if (slug) return slug;
+        // Fallback: simple slugify
         return name.toLowerCase().replace(/'/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     }
 
