@@ -140,6 +140,11 @@
             background: rgba(26, 35, 51, 0.95); border: 1px solid rgba(200, 143, 127, 0.3);
             border-radius: 8px; padding: 8px 12px; color: #ffd700; font-size: 14px; cursor: pointer;
         }
+        .controls-backdrop {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 9; background: transparent;
+        }
+        .controls-backdrop.active { display: block; }
         @media (max-width: 600px) {
             .controls { display: none; }
             .controls.open { display: block; top: 50px; left: 8px; right: 8px; min-width: unset; }
@@ -163,7 +168,8 @@
         Loading wine regions...
     </div>
 
-    <button class="toggle-controls" onclick="document.querySelector('.controls').classList.toggle('open')">🍇 Filters</button>
+    <div class="controls-backdrop" id="controls-backdrop" onclick="closeFilters()"></div>
+    <button class="toggle-controls" onclick="toggleFilters()">🍇 Filters</button>
 
     <div class="controls">
         <h1>🍇 WineTrails</h1>
@@ -230,6 +236,18 @@
 
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
     <script>
+    // ─── Filter panel toggle (mobile) ────────────────────────────────────
+    function toggleFilters() {
+        const controls = document.querySelector('.controls');
+        const backdrop = document.getElementById('controls-backdrop');
+        const isOpen = controls.classList.toggle('open');
+        backdrop.classList.toggle('active', isOpen);
+    }
+    function closeFilters() {
+        document.querySelector('.controls').classList.remove('open');
+        document.getElementById('controls-backdrop').classList.remove('active');
+    }
+
     // ─── Config ─────────────────────────────────────────────────────────
     // WineTrails-owned token — polygon tilesets are public Mapbox data, accessible with any valid token
     const MAPBOX_TOKEN = new URLSearchParams(window.location.search).get('token') || 'pk.eyJ1Ijoi' + 'YnBhaWVtZW50IiwiYSI6ImNtMjAw' + 'azR4NzBjbWUyaXBxdTNnbXMxajQifQ.U9Xioz8pzZddK1z-aZhFTw';
@@ -478,11 +496,13 @@
             }
         });
 
-        // Click on empty area closes panel
+        // Click on empty area closes panels (info + filters)
         map.on('click', (e) => {
             // Check if click hit any wine region
             const features = map.queryRenderedFeatures(e.point, { layers: fillLayers.filter(l => map.getLayer(l)) });
             if (features.length === 0) closeInfo();
+            // Always close filter panel on any map tap
+            closeFilters();
         });
     });
 
