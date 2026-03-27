@@ -265,11 +265,19 @@
 
     // Live regions with WineTrails tours built — 17 tours + aliases that map to them
     const LIVE_REGIONS = [
+        // NZ
         'gibbston', 'cromwell', 'wanaka', 'bendigo', 'bannockburn', 'alexandra',
         'marlborough', "hawke's bay", 'hawkes bay', 'waiheke island', 'waiheke',
         'wairarapa', 'martinborough', 'gladstone', 'nelson', 'waipara', 'waitaki',
         'canterbury', 'auckland', 'kumeu', 'matakana', 'northland', 'gisborne',
-        'north canterbury', 'waipara valley'
+        'north canterbury', 'waipara valley',
+        // AU
+        'barossa', 'barossa valley', 'mclaren vale', 'yarra valley',
+        'margaret river', 'hunter valley', 'hunter',
+        // US
+        'napa', 'napa valley', 'sonoma', 'sonoma county', 'paso robles',
+        'santa barbara', 'santa ynez', 'temecula', 'temecula valley',
+        'willamette', 'willamette valley', 'walla walla'
     ];
 
     // Parent regions that contain multiple live sub-regions
@@ -344,6 +352,21 @@
         'margaret river': 'margaret-river',
         'hunter valley': 'hunter-valley',
         'hunter': 'hunter-valley',
+        // USA
+        'napa': 'napa-valley',
+        'napa valley': 'napa-valley',
+        'sonoma': 'sonoma-county',
+        'sonoma county': 'sonoma-county',
+        'paso robles': 'paso-robles',
+        'santa barbara': 'santa-barbara',
+        'santa ynez': 'santa-barbara',
+        'santa ynez valley': 'santa-barbara',
+        'temecula': 'temecula-valley',
+        'temecula valley': 'temecula-valley',
+        'willamette': 'willamette-valley',
+        'willamette valley': 'willamette-valley',
+        'walla walla': 'walla-walla',
+        'walla walla valley': 'walla-walla',
     };
 
     function regionToSlug(name) {
