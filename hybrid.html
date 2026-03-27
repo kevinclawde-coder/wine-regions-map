@@ -300,11 +300,23 @@
         return PARENT_REGIONS[name.toLowerCase()] || null;
     }
 
-    function isLiveRegion(name) {
+    // Regions where the name exists in multiple countries — only live in specific ones
+    const LIVE_REGION_COUNTRIES = {
+        'bendigo': ['New Zealand'],  // NZ Central Otago only, not AU Victoria
+    };
+
+    function isLiveRegion(name, country) {
         if (!name) return false;
         const n = name.toLowerCase();
         if (PARENT_REGIONS[n]) return true;
-        return LIVE_REGIONS.some(slug => n.includes(slug) || slug.includes(n));
+        const matched = LIVE_REGIONS.some(slug => n.includes(slug) || slug.includes(n));
+        if (!matched) return false;
+        // Check country restriction for ambiguous names
+        const restriction = LIVE_REGION_COUNTRIES[n];
+        if (restriction && country) {
+            return restriction.some(c => country.toLowerCase().includes(c.toLowerCase()));
+        }
+        return true;
     }
 
     // Map worldwineregions.com label/polygon names → our actual Base44 slugs
@@ -768,7 +780,8 @@
     function showRegionInfo(props, lngLat) {
         const panel = document.getElementById('info-panel');
         const name = props.Name_rgn || props.name || 'Unknown';
-        const live = isLiveRegion(name);
+        const country = props.country || '';
+        const live = isLiveRegion(name, country);
         const slug = regionToSlug(name);
 
         // Name + live badge
