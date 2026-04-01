@@ -111,7 +111,8 @@
             background: rgba(255,215,0,0.15); color: #ffd700;
             border: 1px solid rgba(255,215,0,0.4); margin-left: 8px;
         }
-        .sub-region-list { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+        .sub-region-list { margin-top: 0; display: flex; flex-direction: column; gap: 6px; max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out, margin-top 0.3s ease-out; }
+        .sub-region-list.expanded { max-height: 600px; margin-top: 8px; }
         .sub-region-item {
             display: flex; align-items: center; justify-content: space-between;
             padding: 10px 12px; border-radius: 10px;
@@ -122,7 +123,14 @@
         .sub-region-item .sr-name { font-size: 13px; font-weight: 600; color: #ffd700; }
         .sub-region-item .sr-tag { font-size: 11px; color: #c48f7f; }
         .sub-region-item .sr-arrow { color: #ffd700; font-size: 16px; }
-        .sub-region-header { font-size: 12px; color: #c48f7f; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 12px; margin-bottom: 4px; }
+        .sub-region-header {
+            font-size: 12px; color: #c48f7f; text-transform: uppercase; letter-spacing: 0.5px;
+            margin-top: 12px; margin-bottom: 4px; cursor: pointer; display: flex;
+            align-items: center; justify-content: space-between; padding: 8px 0;
+            user-select: none;
+        }
+        .sub-region-header .expand-arrow { font-size: 14px; transition: transform 0.3s; color: #ffd700; }
+        .sub-region-header .expand-arrow.open { transform: rotate(180deg); }
 
         .loading {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -817,12 +825,16 @@
         // CTA buttons — check if parent region with sub-regions
         const parent = getParentRegion(name);
         if (parent) {
+            const listId = 'sr-list-' + slug.replace(/[^a-z0-9]/g, '');
             if (isFlutterWebView) {
-                // Mobile: show sub-regions each with single "Create My WineTrail" action
-                detail += `<div class="sub-region-header">${parent.label}</div>`;
-                detail += '<div class="sub-region-list">';
+                // Mobile: collapsible sub-regions dropdown
+                detail += `<div class="sub-region-header" onclick="toggleSubRegions('${listId}', this)">
+                    <span>${parent.label} (${parent.subregions.length})</span>
+                    <span class="expand-arrow" id="arrow-${listId}">▼</span>
+                </div>`;
+                detail += `<div class="sub-region-list" id="${listId}">`;
                 parent.subregions.forEach(sr => {
-                    detail += `<div class="sub-region-item" onclick="navigateToRegion('${sr.slug}')">
+                    detail += `<div class="sub-region-item" onclick="event.stopPropagation(); navigateToRegion('${sr.slug}')">
                         <div>
                             <div class="sr-name">🍇 ${sr.name}</div>
                             <div class="sr-tag">${sr.tag}</div>
@@ -832,11 +844,14 @@
                 });
                 detail += '</div>';
             } else {
-                // Web: show sub-regions — link to their SelfGuidedDetail pages
-                detail += `<div class="sub-region-header">${parent.label}</div>`;
-                detail += '<div class="sub-region-list">';
+                // Web: collapsible sub-regions dropdown
+                detail += `<div class="sub-region-header" onclick="toggleSubRegions('${listId}', this)">
+                    <span>${parent.label} (${parent.subregions.length})</span>
+                    <span class="expand-arrow" id="arrow-${listId}">▼</span>
+                </div>`;
+                detail += `<div class="sub-region-list" id="${listId}">`;
                 parent.subregions.forEach(sr => {
-                    detail += `<div class="sub-region-item" onclick="generateTour('${sr.slug}')">
+                    detail += `<div class="sub-region-item" onclick="event.stopPropagation(); generateTour('${sr.slug}')">
                         <div>
                             <div class="sr-name">🍇 ${sr.name}</div>
                             <div class="sr-tag">${sr.tag}</div>
@@ -879,6 +894,14 @@
     const isFlutterWebView = typeof WineTrailsApp !== 'undefined';
     // Detect if inside an iframe (Base44 web app)
     const isIframe = window !== window.parent;
+
+    function toggleSubRegions(listId, headerEl) {
+        const list = document.getElementById(listId);
+        const arrow = document.getElementById('arrow-' + listId);
+        if (!list) return;
+        list.classList.toggle('expanded');
+        if (arrow) arrow.classList.toggle('open');
+    }
 
     function navigateToRegion(slug) {
         if (isFlutterWebView) {
