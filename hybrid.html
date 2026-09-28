@@ -150,8 +150,6 @@
             animation: spin 1s linear infinite; margin: 0 auto 12px;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .wt-marker-label { display: none; }
-        .wt-show-labels .wt-marker-label { display: inline; }
 
         .toggle-controls {
             display: none; position: absolute; top: 16px; right: 16px; z-index: 11;
@@ -592,38 +590,66 @@
     window.addEventListener('offline', () => { if (!wtMapReady) wtTellApp({ type: 'map-offline' }); });
 
     // ─── Wine Trails app: a gold marker on every live region ────────────
-    // So anyone can see at a glance where Wine Trails tours exist. Names show
-    // from zoom 6 (below that, 51 names would pile up); tapping a marker
-    // opens that region's own panel with its tour button.
+    // So anyone can see at a glance where Wine Trails tours exist; tapping a
+    // dot opens that region's own panel with its tour button. Drawn as map layers
+    // (not DOM markers) so Mapbox's own label placement keeps names apart:
+    // each name tries the free side of its dot and is hidden only when there
+    // is no room at all; the dot itself always shows.
     let wtMarkersAdded = false;
     function wtShortName(name) {
         const parts = String(name).split(' — ');
         const s = parts[0] === 'Bordeaux' && parts[1] ? parts[1] : parts[0];
         return s.split(/ & |, | \(/)[0].replace(/^Route des Vins d'/, '').trim();
     }
+    const WT_DOT_LAYERS = ['wt-live-hit'];
     function wtAddMarkers() {
         if (!WT_LIVE || wtMarkersAdded) return;
+        // Layers can only be added once the style has loaded ('load' fired);
+        // isStyleLoaded() is still false during 'load' while sources fetch.
+        if (!wtMapReady) { map.once('load', wtAddMarkers); return; }
         wtMarkersAdded = true;
-        WT_LIVE.forEach(r => {
-            if (typeof r.lat !== 'number' || typeof r.lng !== 'number') return;
-            const el = document.createElement('div');
-            el.className = 'wt-marker';
-            el.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;';
-            el.innerHTML = '<span style="width:14px;height:14px;border-radius:50%;background:#ffd700;border:2px solid #1a2333;box-shadow:0 0 8px rgba(255,215,0,0.7);flex:none;"></span>' +
-                '<span class="wt-marker-label" style="color:#ffd700;font-size:12px;font-weight:600;text-shadow:0 1px 2px #000;white-space:nowrap;"></span>';
-            el.lastChild.textContent = wtShortName(r.name);
-            el.addEventListener('click', (e) => {
-                e.stopPropagation();
-                wtShowLivePanel(r);
-            });
-            new mapboxgl.Marker({ element: el, anchor: 'left' }).setLngLat([r.lng, r.lat]).addTo(map);
+        map.addSource('wt-live', {
+            type: 'geojson',
+            data: {
+                type: 'FeatureCollection',
+                features: WT_LIVE
+                    .filter(r => typeof r.lat === 'number' && typeof r.lng === 'number')
+                    .map(r => ({
+                        type: 'Feature',
+                        geometry: { type: 'Point', coordinates: [r.lng, r.lat] },
+                        properties: { slug: r.slug, name: r.name, country: r.country || '', short: wtShortName(r.name) },
+                    })),
+            },
         });
-        wtToggleMarkerLabels();
+        map.addLayer({ id: 'wt-live-glow', type: 'circle', source: 'wt-live',
+            paint: { 'circle-radius': 11, 'circle-color': '#ffd700', 'circle-opacity': 0.35, 'circle-blur': 0.8 } });
+        map.addLayer({ id: 'wt-live-dot', type: 'circle', source: 'wt-live',
+            paint: { 'circle-radius': 6, 'circle-color': '#ffd700', 'circle-stroke-color': '#1a2333', 'circle-stroke-width': 2 } });
+        map.addLayer({ id: 'wt-live-label', type: 'symbol', source: 'wt-live', minzoom: 4,
+            layout: {
+                'text-field': ['get', 'short'],
+                'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+                'text-size': 12,
+                'text-variable-anchor': ['left', 'right', 'top', 'bottom', 'top-left', 'top-right', 'bottom-left', 'bottom-right'],
+                'text-radial-offset': 0.9,
+                'text-justify': 'auto',
+                'text-padding': 3,
+                'text-allow-overlap': false,
+            },
+            paint: { 'text-color': '#ffd700', 'text-halo-color': '#1a2333', 'text-halo-width': 1.5 } });
+        // A bigger, invisible circle so the dot is easy to tap on a phone.
+        map.addLayer({ id: 'wt-live-hit', type: 'circle', source: 'wt-live',
+            paint: { 'circle-radius': 16, 'circle-color': '#000000', 'circle-opacity': 0 } });
+        map.on('click', 'wt-live-hit', (e) => {
+            const p = e.features && e.features[0] && e.features[0].properties;
+            if (p) wtShowLivePanel({ slug: p.slug, name: p.name, country: p.country });
+        });
+        map.on('mouseenter', 'wt-live-hit', () => { map.getCanvas().style.cursor = 'pointer'; });
+        map.on('mouseleave', 'wt-live-hit', () => { map.getCanvas().style.cursor = ''; });
     }
-    function wtToggleMarkerLabels() {
-        map.getContainer().classList.toggle('wt-show-labels', map.getZoom() >= 6);
+    function wtOnDot(point) {
+        return map.getLayer('wt-live-hit') ? map.queryRenderedFeatures(point, { layers: WT_DOT_LAYERS }).length > 0 : false;
     }
-    map.on('zoom', wtToggleMarkerLabels);
 
     // The panel for a marker: the region itself (no name lookups, so a name
     // like "Bendigo" can never light up the Australian Bendigo).
@@ -745,6 +771,7 @@
         fillLayers.forEach(layer => {
             if (map.getLayer(layer)) {
                 map.on('click', layer, (e) => {
+                    if (wtOnDot(e.point)) return;  // Wine Trails app: the dot's own panel wins
                     if (e.features && e.features.length > 0) {
                         showRegionInfo(e.features[0].properties, e.lngLat, e.features[0]);
                         e.originalEvent.stopPropagation();
@@ -759,7 +786,7 @@
         map.on('click', (e) => {
             // Check if click hit any wine region
             const features = map.queryRenderedFeatures(e.point, { layers: fillLayers.filter(l => map.getLayer(l)) });
-            if (features.length === 0) closeInfo();
+            if (features.length === 0 && !wtOnDot(e.point)) closeInfo();
             // Always close filter panel on any map tap
             closeFilters();
         });
