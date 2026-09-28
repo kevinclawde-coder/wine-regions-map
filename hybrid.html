@@ -1,4 +1,12 @@
 <!DOCTYPE html>
+<!-- Wine Trails world map. ONE file, two homes — keep them identical:
+     1. the app's assets/map/hybrid.html, loaded by world_wine_map_page.dart
+        (app 1.4.9+) with the labels and live regions written in, and
+     2. kevinclawde-coder.github.io/wine-regions-map/hybrid.html, loaded by
+        the website's Explore Map and by app versions up to 1.4.8, which
+        fetch the labels and the live regions themselves.
+     Wine Trails changes since 23ae36ab6555 (2026-04-01) are marked
+     "Wine Trails app". -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -242,6 +250,7 @@
         <div class="detail" id="info-detail"></div>
     </div>
 
+    <!--WT_DATA-->
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
     <script>
     // ─── Filter panel toggle (mobile) ────────────────────────────────────
@@ -270,6 +279,76 @@
         mid: 'mid-labels.geojson',
         sub: 'subregion-labels.geojson',
     };
+
+    // ─── Wine Trails app: live regions added after 1 Apr 2026 ───────────
+    // The app writes two things into the page before this script runs:
+    //   window.__WT_LABELS  the three label files (nothing to download)
+    //   window.__WT_LIVE    [{slug, name, country, lat, lng}] = live regions
+    // Regions below are matched by EXACT label name (+ country), never by
+    // substring: a substring match would light "Alpes de Haute Provence" for
+    // Provence. A live region with no label in the map data (Cognac) gets a
+    // marker of its own (see wtAddMarkers).
+    const WT_EXACT_REGIONS = {
+        'alsace': { slug: 'alsace', country: 'France' },
+        'alsace grand cru': { slug: 'alsace', country: 'France' },
+        'beaujolais': { slug: 'beaujolais', country: 'France' },
+        'beaujolais villages': { slug: 'beaujolais', country: 'France' },
+        "bourgogne côte d'or": { slug: 'burgundy-cote-dor', country: 'France' },
+        'bourgogne côte chalonnaise': { slug: 'burgundy-cote-dor', country: 'France' },
+        'champagne': { slug: 'champagne', country: 'France' },
+        'chianti classico': { slug: 'chianti-classico', country: 'Italy' },
+        'coal river valley': { slug: 'coal-river-valley', country: 'Australia' },
+        'constantia': { slug: 'constantia', country: 'South Africa' },
+        'derwent valley': { slug: 'derwent-valley', country: 'Australia' },
+        'east coast': { slug: 'east-coast-tasmania', country: 'Australia' },
+        'entre-deux-mers': { slug: 'entre-deux-mers', country: 'France' },
+        'franschhoek': { slug: 'franschhoek', country: 'South Africa' },
+        "huon valley and d'entrecasteaux channel": { slug: 'huon-valley', country: 'Australia' },
+        'médoc': { slug: 'medoc', country: 'France' },
+        'haut-médoc': { slug: 'medoc', country: 'France' },
+        'pessac-léognan': { slug: 'pessac-leognan-graves', country: 'France' },
+        'graves': { slug: 'pessac-leognan-graves', country: 'France' },
+        'sauternes': { slug: 'pessac-leognan-graves', country: 'France' },
+        'côtes de provence': { slug: 'provence-cotes-de-provence', country: 'France' },
+        'châteauneuf-du-pape': { slug: 'rhone-chateauneuf-du-pape', country: 'France' },
+        'saint-emilion': { slug: 'saint-emilion-libournais', country: 'France' },
+        'saint-emilion grand cru': { slug: 'saint-emilion-libournais', country: 'France' },
+        'pomerol': { slug: 'saint-emilion-libournais', country: 'France' },
+        'seneca lake': { slug: 'seneca-lake', country: 'United States' },
+        'tamar valley': { slug: 'tamar-valley', country: 'Australia' },
+        'north west': { slug: 'north-west-tasmania', country: 'Australia' },
+        // Districts inside live regions: the loose match below marked them
+        // live but sent their own name as the region ("sonoma-valley"), which
+        // doesn't exist. Sonoma County has no label of its own, so these are
+        // the only way to reach it on this map.
+        'sonoma valley': { slug: 'sonoma-county', country: 'United States' },
+        'sonoma coast': { slug: 'sonoma-county', country: 'United States' },
+        'west sonoma coast': { slug: 'sonoma-county', country: 'United States' },
+        'northern sonoma': { slug: 'sonoma-county', country: 'United States' },
+        'sonoma mountain': { slug: 'sonoma-county', country: 'United States' },
+        'moon mountain district sonoma county': { slug: 'sonoma-county', country: 'United States' },
+        'oak knoll district of napa valley': { slug: 'napa-valley', country: 'United States' },
+        'happy canyon of santa barbara': { slug: 'santa-barbara', country: 'United States' },
+        'paso robles estrella district': { slug: 'paso-robles', country: 'United States' },
+        'paso robles geneseo district': { slug: 'paso-robles', country: 'United States' },
+        'paso robles highlands district': { slug: 'paso-robles', country: 'United States' },
+        'paso robles willow creek district': { slug: 'paso-robles', country: 'United States' },
+        'simonsberg-stellenbosch': { slug: 'stellenbosch', country: 'South Africa' },
+    };
+    let WT_LIVE = Array.isArray(window.__WT_LIVE) ? window.__WT_LIVE : null;
+
+    function wtExactSlug(name, country) {
+        const e = WT_EXACT_REGIONS[(name || '').toLowerCase()];
+        if (!e) return null;
+        if (country && e.country && country.toLowerCase() !== e.country.toLowerCase()) return null;
+        return e.slug;
+    }
+
+    // Without the app's list (website, or the list failed to load) the
+    // regions above count as live, as they were when this was written.
+    function wtIsLiveSlug(slug) {
+        return !WT_LIVE || WT_LIVE.some(r => r.slug === slug);
+    }
 
     // Live regions with WineTrails tours built — 17 tours + aliases that map to them
     const LIVE_REGIONS = [
@@ -318,7 +397,19 @@
     function isLiveRegion(name, country) {
         if (!name) return false;
         const n = name.toLowerCase();
+        const exact = wtExactSlug(name, country);  // Wine Trails app
+        if (exact) return wtIsLiveSlug(exact);
         if (PARENT_REGIONS[n]) return true;
+        // Wine Trails app: with the app's live list, a region is live only if
+        // its name resolves to a live region. The loose match below also lit
+        // "Anapa" (Napa), "North" in Uruguay (Northland) and "Bor" in Serbia
+        // (Marlborough), whose buttons sent a region that doesn't exist.
+        if (WT_LIVE) {
+            if (!wtIsLiveSlug(regionToSlug(name))) return false;
+            const only = LIVE_REGION_COUNTRIES[n];
+            if (only && country) return only.some(c => country.toLowerCase().includes(c.toLowerCase()));
+            return true;
+        }
         const matched = LIVE_REGIONS.some(slug => n.includes(slug) || slug.includes(n));
         if (!matched) return false;
         // Check country restriction for ambiguous names
@@ -395,6 +486,8 @@
 
     function regionToSlug(name) {
         if (!name) return '';
+        const exact = wtExactSlug(name, null);  // Wine Trails app
+        if (exact) return exact;
         const slug = SLUG_MAP[name.toLowerCase()];
         if (slug) return slug;
         // Fallback: simple slugify
@@ -486,6 +579,96 @@
     map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'bottom-right');
     map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-right');
 
+    // ─── Wine Trails app: tell the app whether the map loaded ───────────
+    // so it can offer Retry instead of a spinner that never ends offline.
+    let wtMapReady = false;
+    function wtTellApp(msg) {
+        if (typeof WineTrailsApp !== 'undefined') WineTrailsApp.postMessage(JSON.stringify(msg));
+    }
+    map.on('load', () => { wtMapReady = true; wtTellApp({ type: 'map-ready' }); });
+    if (!navigator.onLine) wtTellApp({ type: 'map-offline' });
+    window.addEventListener('offline', () => { if (!wtMapReady) wtTellApp({ type: 'map-offline' }); });
+
+    // ─── Wine Trails app: markers for live regions with no map label ────
+    function wtAddMarkers() {
+        if (!WT_LIVE) return;
+        const covered = new Set([
+            ...Object.values(WT_EXACT_REGIONS).map(e => e.slug),
+            ...Object.values(SLUG_MAP),
+            ...Object.values(PARENT_REGIONS).flatMap(p => p.subregions.map(sr => sr.slug)),
+        ]);
+        WT_LIVE.forEach(r => {
+            if (covered.has(r.slug) || typeof r.lat !== 'number' || typeof r.lng !== 'number') return;
+            // Tapping it opens the same panel as a region, so it needs a name → slug entry.
+            WT_EXACT_REGIONS[String(r.name).toLowerCase()] = { slug: r.slug, country: null };
+            const el = document.createElement('div');
+            el.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;';
+            el.innerHTML = '<span style="width:14px;height:14px;border-radius:50%;background:#ffd700;border:2px solid #1a2333;box-shadow:0 0 8px rgba(255,215,0,0.7);"></span>' +
+                '<span style="color:#ffd700;font-size:12px;font-weight:600;text-shadow:0 1px 2px #000;"></span>';
+            el.lastChild.textContent = r.name;
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                showRegionInfo({ Name_rgn: r.name, country: r.country || '' }, [r.lng, r.lat]);
+            });
+            new mapboxgl.Marker({ element: el, anchor: 'left' }).setLngLat([r.lng, r.lat]).addTo(map);
+        });
+    }
+    wtAddMarkers();
+
+    // Loaded from GitHub (website, app ≤ 1.4.8) nothing is written in, so ask
+    // our backend for the live regions (public, CORS *). Until it answers,
+    // the regions above count as live, exactly as before this change.
+    if (!WT_LIVE) {
+        fetch('https://wine-trails-7e0db23c.base44.app/api/functions/getRegions')
+            .then(r => r.json())
+            .then(d => {
+                const list = (d && Array.isArray(d.regions) ? d.regions : [])
+                    .filter(r => r && r.status === 'available' && r.region_slug)
+                    .map(r => ({ slug: r.region_slug, name: r.name, country: r.country || '', lat: r.center_lat, lng: r.center_lng }));
+                if (list.length) { WT_LIVE = list; wtAddMarkers(); }
+            })
+            .catch(err => console.warn('Live regions unavailable, using the built-in list:', err));
+    }
+
+    // ─── Wine Trails app: live regions lying inside a tapped region ─────
+    // The tapped polygon comes from vector tiles, clipped per tile, so every
+    // loaded piece of it is gathered (querySourceFeatures) and each live
+    // region's centre is tested against them.
+    function wtLiveInside(feature, name) {
+        if (!WT_LIVE || !feature || !feature.source) return [];
+        let pieces = [];
+        try {
+            pieces = map.querySourceFeatures(feature.source, {
+                sourceLayer: feature.sourceLayer,
+                filter: ['==', ['get', 'Name_rgn'], name],
+            });
+        } catch (e) { pieces = []; }
+        if (!pieces.length && feature.geometry) pieces = [feature];
+        const found = WT_LIVE.filter(r =>
+            typeof r.lat === 'number' && typeof r.lng === 'number' &&
+            pieces.some(p => wtPointInGeometry([r.lng, r.lat], p.geometry)));
+        return found
+            .filter((r, i, a) => a.findIndex(x => x.slug === r.slug) === i)
+            .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    }
+    function wtPointInRing(pt, ring) {
+        let inside = false;
+        for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+            const [xi, yi] = ring[i], [xj, yj] = ring[j];
+            if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) inside = !inside;
+        }
+        return inside;
+    }
+    function wtPointInGeometry(pt, g) {
+        if (!g) return false;
+        const polys = g.type === 'Polygon' ? [g.coordinates] : (g.type === 'MultiPolygon' ? g.coordinates : []);
+        return polys.some(rings => rings.length > 0 && wtPointInRing(pt, rings[0]) &&
+            !rings.slice(1).some(hole => wtPointInRing(pt, hole)));
+    }
+    function wtEsc(s) {
+        return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
     map.on('load', () => {
         document.getElementById('loading').style.display = 'none';
 
@@ -534,7 +717,7 @@
             if (map.getLayer(layer)) {
                 map.on('click', layer, (e) => {
                     if (e.features && e.features.length > 0) {
-                        showRegionInfo(e.features[0].properties, e.lngLat);
+                        showRegionInfo(e.features[0].properties, e.lngLat, e.features[0]);
                         e.originalEvent.stopPropagation();
                     }
                 });
@@ -554,32 +737,42 @@
     });
 
     // ─── Load Label Data ────────────────────────────────────────────────
+    // Wine Trails app: the app writes the labels into the page
+    // (window.__WT_LABELS); anywhere else they are downloaded as before.
+    // They are processed as soon as they are here, not after the map has
+    // loaded, so the counts, country list and search work while it loads.
+    const labelsReady = (window.__WT_LABELS
+        ? Promise.resolve([window.__WT_LABELS.top, window.__WT_LABELS.mid, window.__WT_LABELS.sub])
+        : Promise.all([
+            fetch(LABEL_URLS.top).then(r => r.json()),
+            fetch(LABEL_URLS.mid).then(r => r.json()),
+            fetch(LABEL_URLS.sub).then(r => r.json()),
+        ])
+    ).then(([topRes, midRes, subRes]) => {
+        allLabels = [
+            ...topRes.features.map(f => ({ ...f, _tier: 'top' })),
+            ...midRes.features.map(f => ({ ...f, _tier: 'mid' })),
+            ...subRes.features.map(f => ({ ...f, _tier: 'sub' })),
+        ];
+
+        // Stats
+        const countries = new Set(allLabels.map(f => f.properties.country).filter(Boolean));
+        document.getElementById('region-count').textContent = allLabels.length.toLocaleString();
+        document.getElementById('country-count').textContent = countries.size;
+
+        // Populate country dropdown
+        const select = document.getElementById('country-filter');
+        [...countries].sort().forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c; opt.textContent = c;
+            select.appendChild(opt);
+        });
+    }).catch(err => console.error('Failed to load label data:', err));
+
     async function loadLabelData() {
         try {
-            const [topRes, midRes, subRes] = await Promise.all([
-                fetch(LABEL_URLS.top).then(r => r.json()),
-                fetch(LABEL_URLS.mid).then(r => r.json()),
-                fetch(LABEL_URLS.sub).then(r => r.json()),
-            ]);
-
-            allLabels = [
-                ...topRes.features.map(f => ({ ...f, _tier: 'top' })),
-                ...midRes.features.map(f => ({ ...f, _tier: 'mid' })),
-                ...subRes.features.map(f => ({ ...f, _tier: 'sub' })),
-            ];
-
-            // Stats
-            const countries = new Set(allLabels.map(f => f.properties.country).filter(Boolean));
-            document.getElementById('region-count').textContent = allLabels.length.toLocaleString();
-            document.getElementById('country-count').textContent = countries.size;
-
-            // Populate country dropdown
-            const select = document.getElementById('country-filter');
-            [...countries].sort().forEach(c => {
-                const opt = document.createElement('option');
-                opt.value = c; opt.textContent = c;
-                select.appendChild(opt);
-            });
+            await labelsReady;
+            if (!allLabels.length) return;
 
             // Add label data as a source for data overlay modes
             const geojson = {
@@ -789,16 +982,19 @@
     }
 
     // ─── Info Panel ─────────────────────────────────────────────────────
-    function showRegionInfo(props, lngLat) {
+    function showRegionInfo(props, lngLat, feature) {
         const panel = document.getElementById('info-panel');
         const name = props.Name_rgn || props.name || 'Unknown';
         const country = props.country || '';
         const live = isLiveRegion(name, country);
         const slug = regionToSlug(name);
+        // Wine Trails app: a bigger region with live regions inside it
+        // (Central Coast → Paso Robles, Santa Barbara) offers their tours.
+        const inside = (!live && !getParentRegion(name)) ? wtLiveInside(feature, name) : [];
 
         // Name + live badge
         document.getElementById('info-name').innerHTML = name +
-            (live ? '<span class="live-badge">⭐ LIVE</span>' : '');
+            (live || inside.length ? '<span class="live-badge">⭐ LIVE</span>' : '');
         document.getElementById('info-class').textContent = props.class || '';
 
         // Try to find matching label for full metadata
@@ -878,6 +1074,26 @@
                         ✨ Generate Custom Tour
                     </button>`;
                 }
+            } else if (inside.length === 1) {
+                // Wine Trails app: one live region inside this one
+                detail += `<button class="cta-btn primary" onclick="navigateToRegion('${inside[0].slug}')">
+                    🍇 Create My WineTrail · ${wtEsc(inside[0].name)}
+                </button>`;
+            } else if (inside.length > 1) {
+                // Wine Trails app: several live regions inside this one
+                const listId = 'in-list-' + slug.replace(/[^a-z0-9]/g, '');
+                detail += `<div class="sub-region-header" onclick="toggleSubRegions('${listId}', this)">
+                    <span>Wine Trails tours here (${inside.length})</span>
+                    <span class="expand-arrow open" id="arrow-${listId}">▼</span>
+                </div>`;
+                detail += `<div class="sub-region-list expanded" id="${listId}">`;
+                inside.forEach(r => {
+                    detail += `<div class="sub-region-item" onclick="event.stopPropagation(); navigateToRegion('${r.slug}')">
+                        <div><div class="sr-name">🍇 ${wtEsc(r.name)}</div></div>
+                        <span class="sr-arrow">›</span>
+                    </div>`;
+                });
+                detail += '</div>';
             } else {
                 detail += `<button class="cta-btn coming-soon">
                     🔜 Coming Soon
