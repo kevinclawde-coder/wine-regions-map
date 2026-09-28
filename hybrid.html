@@ -150,6 +150,8 @@
             animation: spin 1s linear infinite; margin: 0 auto 12px;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
+        .wt-marker-label { display: none; }
+        .wt-show-labels .wt-marker-label { display: inline; }
 
         .toggle-controls {
             display: none; position: absolute; top: 16px; right: 16px; z-index: 11;
@@ -589,29 +591,56 @@
     if (!navigator.onLine) wtTellApp({ type: 'map-offline' });
     window.addEventListener('offline', () => { if (!wtMapReady) wtTellApp({ type: 'map-offline' }); });
 
-    // ─── Wine Trails app: markers for live regions with no map label ────
+    // ─── Wine Trails app: a gold marker on every live region ────────────
+    // So anyone can see at a glance where Wine Trails tours exist. Names show
+    // from zoom 6 (below that, 51 names would pile up); tapping a marker
+    // opens that region's own panel with its tour button.
+    let wtMarkersAdded = false;
+    function wtShortName(name) {
+        const parts = String(name).split(' — ');
+        const s = parts[0] === 'Bordeaux' && parts[1] ? parts[1] : parts[0];
+        return s.split(/ & |, | \(/)[0].replace(/^Route des Vins d'/, '').trim();
+    }
     function wtAddMarkers() {
-        if (!WT_LIVE) return;
-        const covered = new Set([
-            ...Object.values(WT_EXACT_REGIONS).map(e => e.slug),
-            ...Object.values(SLUG_MAP),
-            ...Object.values(PARENT_REGIONS).flatMap(p => p.subregions.map(sr => sr.slug)),
-        ]);
+        if (!WT_LIVE || wtMarkersAdded) return;
+        wtMarkersAdded = true;
         WT_LIVE.forEach(r => {
-            if (covered.has(r.slug) || typeof r.lat !== 'number' || typeof r.lng !== 'number') return;
-            // Tapping it opens the same panel as a region, so it needs a name → slug entry.
-            WT_EXACT_REGIONS[String(r.name).toLowerCase()] = { slug: r.slug, country: null };
+            if (typeof r.lat !== 'number' || typeof r.lng !== 'number') return;
             const el = document.createElement('div');
+            el.className = 'wt-marker';
             el.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;';
-            el.innerHTML = '<span style="width:14px;height:14px;border-radius:50%;background:#ffd700;border:2px solid #1a2333;box-shadow:0 0 8px rgba(255,215,0,0.7);"></span>' +
-                '<span style="color:#ffd700;font-size:12px;font-weight:600;text-shadow:0 1px 2px #000;"></span>';
-            el.lastChild.textContent = r.name;
+            el.innerHTML = '<span style="width:14px;height:14px;border-radius:50%;background:#ffd700;border:2px solid #1a2333;box-shadow:0 0 8px rgba(255,215,0,0.7);flex:none;"></span>' +
+                '<span class="wt-marker-label" style="color:#ffd700;font-size:12px;font-weight:600;text-shadow:0 1px 2px #000;white-space:nowrap;"></span>';
+            el.lastChild.textContent = wtShortName(r.name);
             el.addEventListener('click', (e) => {
                 e.stopPropagation();
-                showRegionInfo({ Name_rgn: r.name, country: r.country || '' }, [r.lng, r.lat]);
+                wtShowLivePanel(r);
             });
             new mapboxgl.Marker({ element: el, anchor: 'left' }).setLngLat([r.lng, r.lat]).addTo(map);
         });
+        wtToggleMarkerLabels();
+    }
+    function wtToggleMarkerLabels() {
+        map.getContainer().classList.toggle('wt-show-labels', map.getZoom() >= 6);
+    }
+    map.on('zoom', wtToggleMarkerLabels);
+
+    // The panel for a marker: the region itself (no name lookups, so a name
+    // like "Bendigo" can never light up the Australian Bendigo).
+    function wtShowLivePanel(r) {
+        document.getElementById('info-name').innerHTML = wtEsc(r.name) + '<span class="live-badge">⭐ LIVE</span>';
+        document.getElementById('info-class').textContent = 'Wine Trails self-guided audio tour';
+        let detail = r.country ? `<strong>Country:</strong> ${wtEsc(r.country)}<br>` : '';
+        detail += '<div class="cta-buttons">';
+        if (isFlutterWebView) {
+            detail += `<button class="cta-btn primary" onclick="navigateToRegion('${r.slug}')">🍇 Create My WineTrail</button>`;
+        } else {
+            detail += `<button class="cta-btn primary" onclick="navigateToRegion('${r.slug}')">🍇 Explore Wine Tours</button>`;
+            detail += `<button class="cta-btn secondary" onclick="generateTour('${r.slug}')">✨ Generate Custom Tour</button>`;
+        }
+        detail += '</div>';
+        document.getElementById('info-detail').innerHTML = detail;
+        document.getElementById('info-panel').classList.add('active');
     }
     wtAddMarkers();
 
