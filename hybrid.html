@@ -601,7 +601,7 @@
         const s = parts[0] === 'Bordeaux' && parts[1] ? parts[1] : parts[0];
         return s.split(/ & |, | \(/)[0].replace(/^Route des Vins d'/, '').trim();
     }
-    const WT_DOT_LAYERS = ['wt-live-hit'];
+    const WT_DOT_LAYERS = ['wt-live-hit', 'wt-live-label'];  // the dot and its name both open the region
     function wtAddMarkers() {
         if (!WT_LIVE || wtMarkersAdded) return;
         // Layers can only be added once the style has loaded ('load' fired);
@@ -639,13 +639,17 @@
             paint: { 'text-color': '#ffd700', 'text-halo-color': '#1a2333', 'text-halo-width': 1.5 } });
         // A bigger, invisible circle so the dot is easy to tap on a phone.
         map.addLayer({ id: 'wt-live-hit', type: 'circle', source: 'wt-live',
-            paint: { 'circle-radius': 16, 'circle-color': '#000000', 'circle-opacity': 0 } });
-        map.on('click', 'wt-live-hit', (e) => {
-            const p = e.features && e.features[0] && e.features[0].properties;
+            paint: { 'circle-radius': 20, 'circle-color': '#000000', 'circle-opacity': 0 } });
+        // One handler for dot and name: a tap on either opens the region once.
+        map.on('click', (e) => {
+            const f = map.getLayer('wt-live-hit') ? map.queryRenderedFeatures(e.point, { layers: WT_DOT_LAYERS })[0] : null;
+            const p = f && f.properties;
             if (p) wtShowLivePanel({ slug: p.slug, name: p.name, country: p.country });
         });
-        map.on('mouseenter', 'wt-live-hit', () => { map.getCanvas().style.cursor = 'pointer'; });
-        map.on('mouseleave', 'wt-live-hit', () => { map.getCanvas().style.cursor = ''; });
+        WT_DOT_LAYERS.forEach(l => {
+            map.on('mouseenter', l, () => { map.getCanvas().style.cursor = 'pointer'; });
+            map.on('mouseleave', l, () => { map.getCanvas().style.cursor = ''; });
+        });
     }
     function wtOnDot(point) {
         return map.getLayer('wt-live-hit') ? map.queryRenderedFeatures(point, { layers: WT_DOT_LAYERS }).length > 0 : false;
